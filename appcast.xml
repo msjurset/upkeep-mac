@@ -7,15 +7,15 @@
     <language>en</language>
     <item>
       <title>Version 1.0.0</title>
-      <sparkle:version>4</sparkle:version>
+      <sparkle:version>6</sparkle:version>
       <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <pubDate>Thu, 02 Apr 2026 20:28:04 +0000</pubDate>
+      <pubDate>Thu, 02 Apr 2026 20:38:43 +0000</pubDate>
       <enclosure
         url="https://github.com/msjurset/upkeep-mac/releases/download/v1.0.0/Upkeep-1.0.0.dmg"
-        length="3944349"
+        length="3944294"
         type="application/octet-stream"
-        sparkle:edSignature="WitfiGTVP1HOEc9XFwTVEhrx16NUfLuKTARf1ooeZdJYzP1+lZLaioN0ChieLZVQI4zGB2RKT0FUHRTjS3vrDw==" />
+        sparkle:edSignature="yfPKx0Mw8uwxYR2KOm9a6niBm5ZepHIjTqM2BUvM+thJAEuPIms3BDKQfQNlyF0XgGkWVOfMlRllYogMXjhfBQ==" />
     </item>
   </channel>
 </rss>
