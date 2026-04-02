@@ -18,9 +18,10 @@ echo "==> Building Upkeep v${VERSION} (build ${BUILD_NUM})..."
 swift build -c release
 
 # Bundle .app
-mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
+mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources" "${BUNDLE}/Contents/Frameworks"
 cp .build/release/Upkeep "${BUNDLE}/Contents/MacOS/${APP_NAME}"
 cp Info.plist "${BUNDLE}/Contents/Info.plist"
+cp -R .build/arm64-apple-macosx/release/Sparkle.framework "${BUNDLE}/Contents/Frameworks/"
 
 # Generate icon if needed
 test -f AppIcon.icns || swift scripts/generate-icon.swift
