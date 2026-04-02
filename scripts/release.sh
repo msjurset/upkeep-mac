@@ -20,6 +20,7 @@ swift build -c release
 # Bundle .app
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources" "${BUNDLE}/Contents/Frameworks"
 cp .build/release/Upkeep "${BUNDLE}/Contents/MacOS/${APP_NAME}"
+install_name_tool -add_rpath @loader_path/../Frameworks "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
 cp Info.plist "${BUNDLE}/Contents/Info.plist"
 cp -R .build/arm64-apple-macosx/release/Sparkle.framework "${BUNDLE}/Contents/Frameworks/"
 
