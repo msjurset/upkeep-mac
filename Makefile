@@ -45,4 +45,8 @@ restore:
 backups:
 	swift scripts/backup.swift list
 
-.PHONY: build bundle icon deploy clean test seed backup restore backups
+release:
+	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=1.1.0" && exit 1)
+	./scripts/release.sh $(VERSION)
+
+.PHONY: build bundle icon deploy clean test seed backup restore backups release

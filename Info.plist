@@ -32,5 +32,11 @@
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/msjurset/upkeep-mac/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>UEwVMFOzCrec4H3qyVMwgROaxCnPkUbCB4lLz/GnwCg=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>

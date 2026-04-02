@@ -703,7 +703,7 @@ final class UpkeepStore {
     // MARK: - Members
 
     func addMember(name: String, color: String = "amber") {
-        var member = HouseholdMember(name: name, color: color)
+        let member = HouseholdMember(name: name, color: color)
         members.append(member)
         Task {
             do {
