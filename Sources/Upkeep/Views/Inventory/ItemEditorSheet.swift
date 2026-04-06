@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ItemEditorSheet: View {
     @Environment(UpkeepStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
 
     let item: MaintenanceItem?
 
@@ -27,21 +26,12 @@ struct ItemEditorSheet: View {
     private var isValid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Title bar
-            HStack {
-                Text(isEditing ? "Edit Item" : "New Maintenance Item")
-                    .font(.headline)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
-            .padding(16)
-
-            Divider()
-
-            // Form
-            Form {
+        EditorSheet(
+            title: isEditing ? "Edit Item" : "New Maintenance Item",
+            isValid: isValid,
+            saveLabel: isEditing ? "Save" : "Add Item",
+            onSave: save
+        ) {
                 Section("Details") {
                     LeadingTextField(label: "Name", text: $name)
 
@@ -97,7 +87,14 @@ struct ItemEditorSheet: View {
                         Stepper("Used per maintenance: \(quantityPerUse)", value: $quantityPerUse, in: 1...99)
                         LeadingTextField(label: "Product name", text: $productName, prompt: "e.g. MERV 13 Filter 20x25x1")
                         LeadingTextField(label: "Purchase link", text: $productURL, prompt: "https://amazon.com/...")
-                        LeadingTextField(label: "Unit cost", text: $unitCostString, prompt: "Optional")
+                        VStack(alignment: .leading, spacing: 2) {
+                            LeadingTextField(label: "Unit cost", text: $unitCostString, prompt: "Optional")
+                            if !unitCostString.isEmpty && Decimal(string: unitCostString) == nil {
+                                Text("Enter a valid number")
+                                    .font(.caption2)
+                                    .foregroundStyle(.red)
+                            }
+                        }
                     }
                 }
 
@@ -112,24 +109,6 @@ struct ItemEditorSheet: View {
                         Toggle("Active", isOn: $isActive)
                     }
                 }
-            }
-            .formStyle(.grouped)
-
-            Divider()
-
-            // Actions
-            HStack {
-                Spacer()
-                Button(isEditing ? "Save" : "Add Item") {
-                    save()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.upkeepAmber)
-                .disabled(!isValid)
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(16)
         }
         .frame(width: 480, height: 640)
         .onAppear {

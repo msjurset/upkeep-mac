@@ -2,7 +2,6 @@ import SwiftUI
 
 struct VendorEditorSheet: View {
     @Environment(UpkeepStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
 
     let vendor: Vendor?
 
@@ -22,20 +21,13 @@ struct VendorEditorSheet: View {
     private var isValid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(isEditing ? "Edit Vendor" : "New Vendor")
-                    .font(.headline)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
-            .padding(16)
-
-            Divider()
-
-            Form {
-                Section("Details") {
+        EditorSheet(
+            title: isEditing ? "Edit Vendor" : "New Vendor",
+            isValid: isValid,
+            saveLabel: isEditing ? "Save" : "Add Vendor",
+            onSave: save
+        ) {
+            Section("Details") {
                     LeadingTextField(label: "Name", text: $name)
                     LeadingTextField(label: "Specialty", text: $specialty, prompt: "e.g. HVAC repair, plumbing")
                     TagSuggestField(text: $tagsString)
@@ -59,23 +51,6 @@ struct VendorEditorSheet: View {
                         .frame(minHeight: 60)
                         .font(.body)
                 }
-            }
-            .formStyle(.grouped)
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button(isEditing ? "Save" : "Add Vendor") {
-                    save()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.upkeepAmber)
-                .disabled(!isValid)
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(16)
         }
         .frame(width: 440, height: 620)
         .onAppear {

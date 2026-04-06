@@ -154,14 +154,7 @@ struct DueDateBadge: View {
     }
 
     private var label: String {
-        switch daysUntilDue {
-        case ..<0:
-            let overdue = abs(daysUntilDue)
-            return overdue == 1 ? "1 day overdue" : "\(overdue) days overdue"
-        case 0: return "Due today"
-        case 1: return "Due tomorrow"
-        default: return "Due in \(daysUntilDue) days"
-        }
+        DueDateText.badge(days: daysUntilDue)
     }
 }
 

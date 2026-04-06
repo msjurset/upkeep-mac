@@ -120,7 +120,7 @@ struct LogEntryRow: View {
                             .lineLimit(1)
 
                         HStack(spacing: 6) {
-                            Text(entry.completedDate.formatted(date: .abbreviated, time: .omitted))
+                            Text(entry.completedDate.shortDate)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
@@ -312,15 +312,23 @@ struct LogEntryRow: View {
                     .font(.callout)
             }
 
-            HStack {
-                Text("Cost")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 70, alignment: .leading)
-                TextField("Cost", text: $editCostString)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.callout)
-                    .frame(width: 100)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Cost")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 70, alignment: .leading)
+                    TextField("Cost", text: $editCostString)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.callout)
+                        .frame(width: 100)
+                }
+                if !editCostString.isEmpty && Decimal(string: editCostString) == nil {
+                    Text("Enter a valid number")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .padding(.leading, 74)
+                }
             }
 
             HStack {

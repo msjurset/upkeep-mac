@@ -41,7 +41,7 @@ struct LogEntryDetailView: View {
 
                 // Details
                 VStack(alignment: .leading, spacing: 16) {
-                    detailRow(icon: "calendar", title: "Date", value: entry.completedDate.formatted(date: .long, time: .omitted))
+                    detailRow(icon: "calendar", title: "Date", value: entry.completedDate.longDate)
 
                     if !entry.performedBy.isEmpty {
                         detailRow(icon: "person", title: "Performed by", value: entry.performedBy)

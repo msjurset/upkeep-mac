@@ -3,10 +3,52 @@ import XCTest
 @MainActor
 final class UpkeepUITests: XCTestCase {
     let app = XCUIApplication()
+    private var testDataDir: URL!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+
+        // Create isolated temp data directory with seed data
+        testDataDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("upkeep-uitest-\(UUID().uuidString)")
+        let fm = FileManager.default
+        let itemsDir = testDataDir.appendingPathComponent("items")
+        let logDir = testDataDir.appendingPathComponent("log")
+        let vendorsDir = testDataDir.appendingPathComponent("vendors")
+        try fm.createDirectory(at: itemsDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: logDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: vendorsDir, withIntermediateDirectories: true)
+
+        // Seed one item, one log entry, one vendor
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let itemID = UUID()
+        let itemJSON = try encoder.encode(SeedItem(id: itemID, name: "Test Filter Change", category: "hvac",
+            priority: "medium", frequencyInterval: 3, frequencyUnit: "months",
+            startDate: Date.now.addingTimeInterval(-86400 * 30), notes: "", tags: ["test"],
+            isActive: true, version: 1, createdAt: .now, updatedAt: .now))
+        try itemJSON.write(to: itemsDir.appendingPathComponent("\(itemID.uuidString).json"))
+
+        let logID = UUID()
+        let logJSON = try encoder.encode(SeedLogEntry(id: logID, itemID: itemID, title: "Changed filter",
+            category: "hvac", completedDate: Date.now.addingTimeInterval(-86400 * 10),
+            notes: "", performedBy: "Self", createdAt: .now))
+        try logJSON.write(to: logDir.appendingPathComponent("\(logID.uuidString).json"))
+
+        let vendorID = UUID()
+        let vendorJSON = try encoder.encode(SeedVendor(id: vendorID, name: "Test HVAC Co",
+            phone: "555-0123", email: "test@hvac.com", website: "", location: "",
+            specialty: "HVAC", tags: [], notes: "", version: 1, createdAt: .now, updatedAt: .now))
+        try vendorJSON.write(to: vendorsDir.appendingPathComponent("\(vendorID.uuidString).json"))
+
+        app.launchEnvironment["UI_TEST_DATA_DIR"] = testDataDir.path
         app.launch()
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: testDataDir)
     }
 
     private func waitForSidebar() {
@@ -150,4 +192,51 @@ final class UpkeepUITests: XCTestCase {
         tapSidebarItem("sidebar.dashboard")
         waitForElement("detail.dashboard")
     }
+}
+
+// MARK: - Seed Data Structs
+
+// Minimal Codable structs matching the app's JSON format.
+// UI tests can't import the app module, so we define lightweight versions here.
+
+private struct SeedItem: Codable {
+    let id: UUID
+    let name: String
+    let category: String
+    let priority: String
+    let frequencyInterval: Int
+    let frequencyUnit: String
+    let startDate: Date
+    let notes: String
+    let tags: [String]
+    let isActive: Bool
+    let version: Int
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+private struct SeedLogEntry: Codable {
+    let id: UUID
+    let itemID: UUID?
+    let title: String
+    let category: String
+    let completedDate: Date
+    let notes: String
+    let performedBy: String
+    let createdAt: Date
+}
+
+private struct SeedVendor: Codable {
+    let id: UUID
+    let name: String
+    let phone: String
+    let email: String
+    let website: String
+    let location: String
+    let specialty: String
+    let tags: [String]
+    let notes: String
+    let version: Int
+    let createdAt: Date
+    let updatedAt: Date
 }

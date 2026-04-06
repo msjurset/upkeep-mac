@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LogEntrySheet: View {
     @Environment(UpkeepStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
 
     let entry: LogEntry?
     let itemID: UUID?
@@ -20,21 +19,13 @@ struct LogEntrySheet: View {
     private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Title bar
-            HStack {
-                Text(isEditing ? "Edit Log Entry" : "Log Maintenance")
-                    .font(.headline)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
-            .padding(16)
-
-            Divider()
-
-            Form {
-                Section("What was done") {
+        EditorSheet(
+            title: isEditing ? "Edit Log Entry" : "Log Maintenance",
+            isValid: isValid,
+            saveLabel: isEditing ? "Save" : "Log Entry",
+            onSave: save
+        ) {
+            Section("What was done") {
                     if itemID == nil && entry?.itemID == nil {
                         Picker("Linked item", selection: $selectedItemID) {
                             Text("None (standalone entry)").tag(UUID?.none)
@@ -66,7 +57,14 @@ struct LogEntrySheet: View {
 
                     LeadingTextField(label: "Performed by", text: $performedBy, prompt: "Self, vendor name, etc.")
 
-                    LeadingTextField(label: "Cost", text: $costString, prompt: "Optional")
+                    VStack(alignment: .leading, spacing: 2) {
+                        LeadingTextField(label: "Cost", text: $costString, prompt: "Optional")
+                        if !costString.isEmpty && Decimal(string: costString) == nil {
+                            Text("Enter a valid number")
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
+                    }
 
                     HStack(spacing: 4) {
                         Text("Satisfaction")
@@ -80,23 +78,6 @@ struct LogEntrySheet: View {
                         .frame(minHeight: 60)
                         .font(.body)
                 }
-            }
-            .formStyle(.grouped)
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button(isEditing ? "Save" : "Log Entry") {
-                    save()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.upkeepAmber)
-                .disabled(!isValid)
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(16)
         }
         .frame(width: 460, height: 540)
         .onAppear {

@@ -225,13 +225,13 @@ struct ItemDetailView: View {
                 if let last = store.lastCompletion(for: item.id) {
                     scheduleCard(
                         title: "Last Done",
-                        value: last.completedDate.formatted(date: .abbreviated, time: .omitted),
+                        value: last.completedDate.shortDate,
                         icon: "checkmark.circle"
                     )
                 } else {
                     scheduleCard(
                         title: "Tracking Since",
-                        value: item.startDate.formatted(date: .abbreviated, time: .omitted),
+                        value: item.startDate.shortDate,
                         icon: "calendar.badge.clock"
                     )
                 }
@@ -257,12 +257,7 @@ struct ItemDetailView: View {
     }
 
     private func dueDateText(_ days: Int) -> String {
-        switch days {
-        case ..<0: return "\(abs(days)) days overdue"
-        case 0: return "Today"
-        case 1: return "Tomorrow"
-        default: return "In \(days) days"
-        }
+        DueDateText.relative(days: days)
     }
 
     // MARK: - Vendor
@@ -515,7 +510,7 @@ struct ItemDetailView: View {
                                 .foregroundStyle(followUp.isDone ? .secondary : .primary)
 
                             if let dueDate = followUp.dueDate {
-                                Text(dueDate.formatted(date: .abbreviated, time: .omitted))
+                                Text(dueDate.shortDate)
                                     .font(.caption)
                                     .foregroundStyle(followUp.isOverdue ? .upkeepRed : .secondary)
                             }

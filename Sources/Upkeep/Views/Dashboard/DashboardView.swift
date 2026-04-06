@@ -274,7 +274,7 @@ struct DashboardView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 if let due = followUp.dueDate {
-                                    Text("~ \(due.formatted(date: .abbreviated, time: .omitted))")
+                                    Text("~ \(due.shortDate)")
                                         .font(.caption)
                                         .foregroundStyle(followUp.isOverdue ? .upkeepRed : .secondary)
                                 }
@@ -723,7 +723,7 @@ struct DashboardView: View {
                 Text(entry.title)
                     .font(.body)
                     .lineLimit(1)
-                Text(entry.completedDate.formatted(date: .abbreviated, time: .omitted))
+                Text(entry.completedDate.shortDate)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
