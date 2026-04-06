@@ -10,7 +10,11 @@ struct VendorEditorSheet: View {
     @State private var phone = ""
     @State private var email = ""
     @State private var website = ""
+    @State private var location = ""
     @State private var specialty = ""
+    @State private var acctMgrName = ""
+    @State private var acctMgrPhone = ""
+    @State private var acctMgrEmail = ""
     @State private var notes = ""
 
     private var isEditing: Bool { vendor != nil }
@@ -31,19 +35,21 @@ struct VendorEditorSheet: View {
 
             Form {
                 Section("Details") {
-                    TextField("Name", text: $name)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Specialty", text: $specialty, prompt: Text("e.g. HVAC repair, plumbing"))
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Name", text: $name)
+                    LeadingTextField(label: "Specialty", text: $specialty, prompt: "e.g. HVAC repair, plumbing")
                 }
 
                 Section("Contact") {
-                    TextField("Phone", text: $phone)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Email", text: $email)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Website", text: $website)
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Phone", text: $phone)
+                    LeadingTextField(label: "Email", text: $email)
+                    LeadingTextField(label: "Website", text: $website)
+                    LeadingTextField(label: "Location", text: $location, prompt: "Google Maps link or Plus Code URL")
+                }
+
+                Section("Account Manager") {
+                    LeadingTextField(label: "Name", text: $acctMgrName)
+                    LeadingTextField(label: "Phone", text: $acctMgrPhone)
+                    LeadingTextField(label: "Email", text: $acctMgrEmail)
                 }
 
                 Section("Notes") {
@@ -69,14 +75,18 @@ struct VendorEditorSheet: View {
             }
             .padding(16)
         }
-        .frame(width: 440, height: 460)
+        .frame(width: 440, height: 620)
         .onAppear {
             if let vendor {
                 name = vendor.name
                 phone = vendor.phone
                 email = vendor.email
                 website = vendor.website
+                location = vendor.location
                 specialty = vendor.specialty
+                acctMgrName = vendor.accountManager.name
+                acctMgrPhone = vendor.accountManager.phone
+                acctMgrEmail = vendor.accountManager.email
                 notes = vendor.notes
             }
         }
@@ -89,13 +99,18 @@ struct VendorEditorSheet: View {
             existing.phone = phone
             existing.email = email
             existing.website = website
+            existing.location = location
             existing.specialty = specialty
+            existing.accountManager = AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail)
             existing.notes = notes
             store.updateVendor(existing)
         } else {
             store.createVendor(
                 name: trimmedName, phone: phone, email: email,
-                website: website, specialty: specialty, notes: notes
+                website: website, location: location,
+                specialty: specialty,
+                accountManager: AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail),
+                notes: notes
             )
         }
     }

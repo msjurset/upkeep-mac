@@ -5,17 +5,17 @@ struct HomeProfileView: View {
     @State private var profile = HomeProfile()
     @State private var loaded = false
     @State private var showAddSystem = false
+    @State private var editingSystemID: UUID?
 
     var body: some View {
         Form {
             Section("Property") {
-                TextField("Address", text: $profile.address)
-                    .textFieldStyle(.roundedBorder)
+                LeadingTextField(label: "Address", text: $profile.address)
 
                 HStack {
                     Text("Year Built")
                     Spacer()
-                    TextField("e.g. 1998", value: $profile.yearBuilt, format: .number)
+                    TextField("e.g. 1998", value: $profile.yearBuilt, format: .number.grouping(.never))
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
                         .multilineTextAlignment(.trailing)
@@ -39,7 +39,18 @@ struct HomeProfileView: View {
                 }
 
                 ForEach($profile.systems) { $system in
-                    systemRow(system: system)
+                    Button {
+                        editingSystemID = system.id
+                    } label: {
+                        systemRow(system: system)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Edit") { editingSystemID = system.id }
+                        Button("Delete", role: .destructive) {
+                            profile.systems.removeAll { $0.id == system.id }
+                        }
+                    }
                 }
                 .onDelete { indices in
                     profile.systems.remove(atOffsets: indices)
@@ -75,6 +86,19 @@ struct HomeProfileView: View {
         .sheet(isPresented: $showAddSystem) {
             SystemEditorSheet { system in
                 profile.systems.append(system)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { editingSystemID != nil },
+            set: { if !$0 { editingSystemID = nil } }
+        )) {
+            if let id = editingSystemID,
+               let index = profile.systems.firstIndex(where: { $0.id == id }) {
+                SystemEditorSheet(system: profile.systems[index], onSave: { updated in
+                    profile.systems[index] = updated
+                }, onDelete: {
+                    profile.systems.remove(at: index)
+                })
             }
         }
     }
@@ -121,6 +145,10 @@ struct HomeProfileView: View {
 struct SystemEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     var onSave: (HomeProfile.HomeSystem) -> Void
+    var onDelete: (() -> Void)?
+
+    private let existing: HomeProfile.HomeSystem?
+    private var isEditing: Bool { existing != nil }
 
     @State private var name = ""
     @State private var brand = ""
@@ -129,11 +157,18 @@ struct SystemEditorSheet: View {
     @State private var hasInstalledDate = false
     @State private var lifespanYears = ""
     @State private var notes = ""
+    @State private var showDeleteConfirm = false
+
+    init(system: HomeProfile.HomeSystem? = nil, onSave: @escaping (HomeProfile.HomeSystem) -> Void, onDelete: (() -> Void)? = nil) {
+        self.existing = system
+        self.onSave = onSave
+        self.onDelete = onDelete
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Add System")
+                Text(isEditing ? "Edit System" : "Add System")
                     .font(.headline)
                 Spacer()
                 Button("Cancel") { dismiss() }
@@ -144,20 +179,16 @@ struct SystemEditorSheet: View {
             Divider()
 
             Form {
-                TextField("Name", text: $name, prompt: Text("e.g. Water Heater, Roof, HVAC"))
-                    .textFieldStyle(.roundedBorder)
-                TextField("Brand", text: $brand)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Model", text: $model)
-                    .textFieldStyle(.roundedBorder)
+                LeadingTextField(label: "Name", text: $name, prompt: "e.g. Water Heater, Roof, HVAC")
+                LeadingTextField(label: "Brand", text: $brand)
+                LeadingTextField(label: "Model", text: $model)
 
                 Toggle("Track install date", isOn: $hasInstalledDate)
                 if hasInstalledDate {
                     DatePicker("Installed", selection: $installedDate, displayedComponents: .date)
                 }
 
-                TextField("Expected lifespan (years)", text: $lifespanYears)
-                    .textFieldStyle(.roundedBorder)
+                LeadingTextField(label: "Expected lifespan (years)", text: $lifespanYears)
 
                 TextEditor(text: $notes)
                     .frame(minHeight: 40)
@@ -167,14 +198,20 @@ struct SystemEditorSheet: View {
             Divider()
 
             HStack {
+                if isEditing && onDelete != nil {
+                    Button("Delete", role: .destructive) {
+                        showDeleteConfirm = true
+                    }
+                }
                 Spacer()
-                Button("Add") {
-                    let system = HomeProfile.HomeSystem(
-                        name: name, brand: brand, model: model,
-                        installedDate: hasInstalledDate ? installedDate : nil,
-                        expectedLifespanYears: Int(lifespanYears),
-                        notes: notes
-                    )
+                Button(isEditing ? "Save" : "Add") {
+                    var system = existing ?? HomeProfile.HomeSystem(name: "")
+                    system.name = name
+                    system.brand = brand
+                    system.model = model
+                    system.installedDate = hasInstalledDate ? installedDate : nil
+                    system.expectedLifespanYears = Int(lifespanYears)
+                    system.notes = notes
                     onSave(system)
                     dismiss()
                 }
@@ -184,7 +221,30 @@ struct SystemEditorSheet: View {
                 .keyboardShortcut(.defaultAction)
             }
             .padding(16)
+            .confirmationDialog("Delete \"\(name)\"?", isPresented: $showDeleteConfirm) {
+                Button("Delete", role: .destructive) {
+                    onDelete?()
+                    dismiss()
+                }
+            } message: {
+                Text("This will permanently remove this system.")
+            }
         }
         .frame(width: 400, height: 420)
+        .onAppear {
+            if let system = existing {
+                name = system.name
+                brand = system.brand
+                model = system.model
+                if let date = system.installedDate {
+                    installedDate = date
+                    hasInstalledDate = true
+                }
+                if let years = system.expectedLifespanYears {
+                    lifespanYears = "\(years)"
+                }
+                notes = system.notes
+            }
+        }
     }
 }

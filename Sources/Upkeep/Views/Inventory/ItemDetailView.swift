@@ -6,6 +6,7 @@ struct ItemDetailView: View {
     @State private var showEditSheet = false
     @State private var showLogSheet = false
     @State private var showDeleteConfirm = false
+    @State private var deleteAssociatedLogs = false
     @State private var showSnoozePopover = false
     @State private var isAddingTag = false
     @State private var newTagText = ""
@@ -113,13 +114,8 @@ struct ItemDetailView: View {
         .sheet(isPresented: $showLogSheet) {
             LogEntrySheet(entry: nil, itemID: item.id)
         }
-        .confirmationDialog("Delete \"\(item.name)\"?", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                store.deleteItem(id: item.id)
-                store.selectedItemID = nil
-            }
-        } message: {
-            Text("This will permanently remove this item and cannot be undone.")
+        .sheet(isPresented: $showDeleteConfirm) {
+            DeleteItemConfirmation(item: item, deleteLogs: $deleteAssociatedLogs)
         }
     }
 
@@ -593,5 +589,62 @@ struct ItemDetailView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Delete Confirmation
+
+private struct DeleteItemConfirmation: View {
+    @Environment(UpkeepStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let item: MaintenanceItem
+    @Binding var deleteLogs: Bool
+
+    private var logCount: Int {
+        store.logEntries(for: item.id).count
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "trash")
+                .font(.largeTitle)
+                .foregroundStyle(.red)
+
+            Text("Delete \"\(item.name)\"?")
+                .font(.headline)
+
+            Text("This will permanently remove this item and cannot be undone.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            if logCount > 0 {
+                Toggle(isOn: $deleteLogs) {
+                    Text("Also delete \(logCount) associated log \(logCount == 1 ? "entry" : "entries")")
+                        .font(.callout)
+                }
+                .toggleStyle(.checkbox)
+                .padding(.top, 4)
+            }
+
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    deleteLogs = false
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Delete", role: .destructive) {
+                    store.deleteItem(id: item.id, deleteLogs: deleteLogs)
+                    store.selectedItemID = nil
+                    deleteLogs = false
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.top, 4)
+        }
+        .padding(24)
+        .frame(width: 340)
     }
 }

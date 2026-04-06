@@ -323,6 +323,7 @@ struct VendorTests {
         #expect(vendor.phone.isEmpty)
         #expect(vendor.email.isEmpty)
         #expect(vendor.website.isEmpty)
+        #expect(vendor.location.isEmpty)
         #expect(vendor.specialty.isEmpty)
         #expect(vendor.notes.isEmpty)
     }
@@ -337,6 +338,171 @@ struct VendorTests {
 
         let withEmail = Vendor(name: "Test", email: "a@b.com")
         #expect(withEmail.hasContactInfo == true)
+
+        let withLocation = Vendor(name: "Test", location: "https://maps.google.com/?q=test")
+        #expect(withLocation.hasContactInfo == true)
+    }
+
+    // MARK: - Location URL: Map URLs
+
+    @Test("locationURL passes through https map URL")
+    func locationURLHttps() {
+        let vendor = Vendor(name: "Test", location: "https://maps.google.com/?q=test")
+        #expect(vendor.locationURL?.absoluteString == "https://maps.google.com/?q=test")
+    }
+
+    @Test("locationURL passes through http URL")
+    func locationURLHttp() {
+        let vendor = Vendor(name: "Test", location: "http://maps.google.com/?q=test")
+        #expect(vendor.locationURL?.absoluteString == "http://maps.google.com/?q=test")
+    }
+
+    @Test("locationURL passes through non-Google map URL")
+    func locationURLNonGoogle() {
+        let vendor = Vendor(name: "Test", location: "https://www.openstreetmap.org/#map=15/33.829/-84.493")
+        #expect(vendor.locationURL?.absoluteString == "https://www.openstreetmap.org/#map=15/33.829/-84.493")
+    }
+
+    // MARK: - Location URL: Plus Codes
+
+    @Test("locationURL from global Plus Code",
+          arguments: [
+            ("849VCWC8+R9", "https://www.google.com/maps/search/?api=1&query=849VCWC8%2BR9"),
+            ("87G8Q2PQ+7V", "https://www.google.com/maps/search/?api=1&query=87G8Q2PQ%2B7V"),
+          ])
+    func locationURLGlobalPlusCode(input: String, expected: String) {
+        let vendor = Vendor(name: "Test", location: input)
+        #expect(vendor.locationURL?.absoluteString == expected)
+    }
+
+    @Test("locationURL from short Plus Code with locality",
+          arguments: [
+            ("CWC8+R9 Mountain View", "https://www.google.com/maps/search/?api=1&query=CWC8%2BR9%20Mountain%20View"),
+            ("RGH4+HQ Smyrna, Georgia", "https://www.google.com/maps/search/?api=1&query=RGH4%2BHQ%20Smyrna,%20Georgia"),
+          ])
+    func locationURLShortPlusCode(input: String, expected: String) {
+        let vendor = Vendor(name: "Test", location: input)
+        #expect(vendor.locationURL?.absoluteString == expected)
+    }
+
+    @Test("locationURL Plus Code encodes + as %2B")
+    func locationURLPlusCodeEncoding() {
+        let vendor = Vendor(name: "Test", location: "849VCWC8+R9")
+        let url = vendor.locationURL!.absoluteString
+        #expect(url.contains("%2B"))
+        #expect(!url.contains("+"))
+    }
+
+    // MARK: - Location URL: Coordinates
+
+    @Test("locationURL from coordinates",
+          arguments: [
+            ("33.82898680162221, -84.49300463162628", "https://www.google.com/maps/search/?api=1&query=33.82898680162221,-84.49300463162628"),
+            ("40.7128, -74.0060", "https://www.google.com/maps/search/?api=1&query=40.7128,-74.0060"),
+            ("-33.8688, 151.2093", "https://www.google.com/maps/search/?api=1&query=-33.8688,151.2093"),
+          ])
+    func locationURLCoordinates(input: String, expected: String) {
+        let vendor = Vendor(name: "Test", location: input)
+        #expect(vendor.locationURL?.absoluteString == expected)
+    }
+
+    @Test("locationURL rejects out-of-range coordinates")
+    func locationURLInvalidCoordinates() {
+        #expect(Vendor(name: "T", location: "91.0, -84.0").locationURL == nil)
+        #expect(Vendor(name: "T", location: "-91.0, -84.0").locationURL == nil)
+        #expect(Vendor(name: "T", location: "33.0, 181.0").locationURL == nil)
+        #expect(Vendor(name: "T", location: "33.0, -181.0").locationURL == nil)
+    }
+
+    @Test("locationURL handles coordinates without spaces")
+    func locationURLCoordinatesNoSpace() {
+        let vendor = Vendor(name: "Test", location: "33.829,-84.493")
+        #expect(vendor.locationURL?.absoluteString == "https://www.google.com/maps/search/?api=1&query=33.829,-84.493")
+    }
+
+    // MARK: - Location URL: DMS Coordinates
+
+    @Test("locationURL from DMS coordinates")
+    func locationURLDMS() {
+        let vendor = Vendor(name: "Test", location: "33°49'44.4\"N 84°29'34.8\"W")
+        let url = vendor.locationURL
+        #expect(url != nil)
+        // 33 + 49/60 + 44.4/3600 = 33.829, negated W = -84.4930
+        let str = url!.absoluteString
+        #expect(str.hasPrefix("https://www.google.com/maps/search/?api=1&query=33.82"))
+        #expect(str.contains(",-84.49"))
+    }
+
+    @Test("locationURL from DMS southern/eastern hemisphere")
+    func locationURLDMSSouthEast() {
+        let vendor = Vendor(name: "Test", location: "33°52'07.7\"S 151°12'33.5\"E")
+        let url = vendor.locationURL
+        #expect(url != nil)
+        let str = url!.absoluteString
+        #expect(str.contains("-33."))
+        #expect(str.contains(",151."))
+    }
+
+    @Test("locationURL DMS with typographic quotes")
+    func locationURLDMSTypographic() {
+        let vendor = Vendor(name: "Test", location: "33\u{00B0}49\u{2032}44.4\u{2033}N 84\u{00B0}29\u{2032}34.8\u{2033}W")
+        #expect(vendor.locationURL != nil)
+    }
+
+    // MARK: - Location URL: Nil cases
+
+    @Test("locationURL nil for empty or plain text")
+    func locationURLNil() {
+        #expect(Vendor(name: "Test").locationURL == nil)
+        #expect(Vendor(name: "Test", location: "").locationURL == nil)
+        #expect(Vendor(name: "Test", location: "   ").locationURL == nil)
+        #expect(Vendor(name: "Test", location: "123 Main St").locationURL == nil)
+        #expect(Vendor(name: "Test", location: "Bob's shop downtown").locationURL == nil)
+    }
+
+    @Test("account manager defaults to empty")
+    func accountManagerDefaults() {
+        let vendor = Vendor(name: "Test")
+        #expect(vendor.accountManager.isEmpty)
+        #expect(vendor.accountManager.name.isEmpty)
+        #expect(vendor.accountManager.phone.isEmpty)
+        #expect(vendor.accountManager.email.isEmpty)
+    }
+
+    @Test("account manager round-trips through JSON")
+    func accountManagerRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let vendor = Vendor(
+            name: "Test",
+            accountManager: AccountManager(name: "Jane", phone: "555-9999", email: "jane@vendor.com")
+        )
+        let data = try encoder.encode(vendor)
+        let decoded = try decoder.decode(Vendor.self, from: data)
+        #expect(decoded.accountManager.name == "Jane")
+        #expect(decoded.accountManager.phone == "555-9999")
+        #expect(decoded.accountManager.email == "jane@vendor.com")
+        #expect(!decoded.accountManager.isEmpty)
+    }
+
+    @Test("account manager backward-compatible when missing from JSON")
+    func accountManagerBackwardCompat() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        // Encode a vendor, strip the accountManager key, decode again
+        let vendor = Vendor(name: "Test")
+        let data = try encoder.encode(vendor)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "accountManager")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(Vendor.self, from: stripped)
+        #expect(decoded.accountManager.isEmpty)
     }
 
     @Test("touch updates timestamp")

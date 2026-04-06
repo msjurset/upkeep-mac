@@ -43,8 +43,7 @@ struct ItemEditorSheet: View {
             // Form
             Form {
                 Section("Details") {
-                    TextField("Name", text: $name)
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Name", text: $name)
 
                     Picker("Category", selection: $category) {
                         ForEach(MaintenanceCategory.allCases) { cat in
@@ -52,8 +51,7 @@ struct ItemEditorSheet: View {
                         }
                     }
 
-                    TextField("Tags", text: $tagsString, prompt: Text("Comma-separated: spring-prep, weekend"))
-                        .textFieldStyle(.roundedBorder)
+                    TagSuggestField(text: $tagsString)
 
                     Picker("Priority", selection: $priority) {
                         ForEach(Priority.allCases, id: \.self) { p in
@@ -97,12 +95,9 @@ struct ItemEditorSheet: View {
                     if trackSupply {
                         Stepper("In stock: \(stockOnHand)", value: $stockOnHand, in: 0...999)
                         Stepper("Used per maintenance: \(quantityPerUse)", value: $quantityPerUse, in: 1...99)
-                        TextField("Product name", text: $productName, prompt: Text("e.g. MERV 13 Filter 20x25x1"))
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Purchase link", text: $productURL, prompt: Text("https://amazon.com/..."))
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Unit cost", text: $unitCostString, prompt: Text("Optional"))
-                            .textFieldStyle(.roundedBorder)
+                        LeadingTextField(label: "Product name", text: $productName, prompt: "e.g. MERV 13 Filter 20x25x1")
+                        LeadingTextField(label: "Purchase link", text: $productURL, prompt: "https://amazon.com/...")
+                        LeadingTextField(label: "Unit cost", text: $unitCostString, prompt: "Optional")
                     }
                 }
 

@@ -6,49 +6,20 @@ struct DashboardView: View {
     @State private var quickLogItemID: UUID?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                // Empty state
-                if store.items.isEmpty && store.logEntries.isEmpty {
-                    emptyState
-                } else {
-                    // 1. Health overview
-                    healthOverview
-                        .padding(.horizontal, 24)
-
-                    // 2. Reorder alerts
-                    if !store.lowStockItems.isEmpty {
-                        reorderAlerts
-                    }
-
-                    // 3. Pending follow-ups
-                    if !store.pendingFollowUps.isEmpty {
-                        followUpsSection
-                    }
-
-                    // 4. Overdue with quick-log
-                    if !store.overdueItems.isEmpty {
-                        overdueSection
-                    }
-
-                    // 4. Next 30 days timeline
-                    next30DaysTimeline
-
-                    // 5. Seasonal awareness
-                    seasonalSection
-
-                    // 6. Recent activity
-                    if !store.recentLogEntries.isEmpty {
-                        recentActivity
-                    }
-
-                    // 7. Cost breakdown (lower prominence)
-                    if !store.logEntries.isEmpty {
-                        costSection
+        GeometryReader { geo in
+            let wide = geo.size.width >= 700
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    if store.items.isEmpty && store.logEntries.isEmpty {
+                        emptyState
+                    } else if wide {
+                        wideLayout
+                    } else {
+                        narrowLayout
                     }
                 }
+                .padding(.vertical, 24)
             }
-            .padding(.vertical, 24)
         }
         .navigationTitle("Dashboard")
         .sheet(isPresented: $showLogSheet) {
@@ -57,6 +28,73 @@ struct DashboardView: View {
                 LogEntrySheet(entry: nil, itemID: itemID)
             }
         }
+    }
+
+    // MARK: - Responsive Layouts
+
+    /// Two-column layout for wider windows
+    private var wideLayout: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            // Health overview spans full width
+            healthOverview
+                .padding(.horizontal, 24)
+
+            // Two-column body
+            HStack(alignment: .top, spacing: 20) {
+                // Left column: action items & activity
+                VStack(alignment: .leading, spacing: 28) {
+                    if !store.lowStockItems.isEmpty {
+                        reorderAlerts
+                    }
+                    if !store.pendingFollowUps.isEmpty {
+                        followUpsSection
+                    }
+                    if !store.overdueItems.isEmpty {
+                        overdueSection
+                    }
+                    next30DaysTimeline
+                    if !store.recentLogEntries.isEmpty {
+                        recentActivity
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Right column: planning & costs
+                VStack(alignment: .leading, spacing: 28) {
+                    seasonalSection
+                    if !store.logEntries.isEmpty {
+                        costSection
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    /// Single-column layout for narrower windows
+    private var narrowLayout: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            healthOverview
+            if !store.lowStockItems.isEmpty {
+                reorderAlerts
+            }
+            if !store.pendingFollowUps.isEmpty {
+                followUpsSection
+            }
+            if !store.overdueItems.isEmpty {
+                overdueSection
+            }
+            next30DaysTimeline
+            seasonalSection
+            if !store.recentLogEntries.isEmpty {
+                recentActivity
+            }
+            if !store.logEntries.isEmpty {
+                costSection
+            }
+        }
+        .padding(.horizontal, 24)
     }
 
     // MARK: - Health Overview
@@ -529,7 +567,6 @@ struct DashboardView: View {
                 Text("Spending")
                     .font(.headline)
             }
-            .padding(.horizontal, 24)
 
             VStack(spacing: 12) {
                 // Month comparison
@@ -578,7 +615,6 @@ struct DashboardView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator.opacity(0.2)))
                 }
             }
-            .padding(.horizontal, 24)
         }
     }
 
@@ -669,12 +705,10 @@ struct DashboardView: View {
                 Text(title)
                     .font(.headline)
             }
-            .padding(.horizontal, 24)
 
             VStack(spacing: 1) {
                 content()
             }
-            .padding(.horizontal, 24)
         }
     }
 

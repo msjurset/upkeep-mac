@@ -46,6 +46,45 @@ struct VendorDetailView: View {
                         if !vendor.website.isEmpty {
                             contactRow(icon: "globe", label: "Website", value: vendor.website)
                         }
+                        if !vendor.location.isEmpty, let url = vendor.locationURL {
+                            HStack(spacing: 8) {
+                                Image(systemName: "map")
+                                    .font(.caption)
+                                    .foregroundStyle(.upkeepAmber)
+                                    .frame(width: 16)
+                                Text("Location")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 50, alignment: .leading)
+                                Link(destination: url) {
+                                    Text("Open in Maps")
+                                        .font(.body)
+                                }
+                            }
+                        } else if !vendor.location.isEmpty {
+                            contactRow(icon: "map", label: "Location", value: vendor.location)
+                        }
+                    }
+                    .padding(20)
+                }
+
+                // Account Manager
+                if !vendor.accountManager.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Account Manager")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+
+                        if !vendor.accountManager.name.isEmpty {
+                            contactRow(icon: "person", label: "Name", value: vendor.accountManager.name)
+                        }
+                        if !vendor.accountManager.phone.isEmpty {
+                            contactRow(icon: "phone", label: "Phone", value: vendor.accountManager.phone)
+                        }
+                        if !vendor.accountManager.email.isEmpty {
+                            contactRow(icon: "envelope", label: "Email", value: vendor.accountManager.email)
+                        }
                     }
                     .padding(20)
                 }
@@ -125,7 +164,12 @@ struct VendorDetailView: View {
                 store.selectedVendorID = nil
             }
         } message: {
-            Text("This will permanently remove this vendor.")
+            let count = store.items(for: vendor.id).count
+            if count > 0 {
+                Text("This will permanently remove this vendor and unlink \(count) assigned item\(count == 1 ? "" : "s").")
+            } else {
+                Text("This will permanently remove this vendor.")
+            }
         }
     }
 

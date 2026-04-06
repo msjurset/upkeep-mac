@@ -7,30 +7,35 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             Section("Overview") {
-                Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
-                    .tag(NavigationItem.dashboard)
+                NavigationLink(value: NavigationItem.dashboard) {
+                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
+                }
+                .accessibilityIdentifier("sidebar.dashboard")
             }
 
             Section("Inventory") {
-                sidebarRow("Upcoming", icon: "clock", tag: .inventoryUpcoming, count: store.upcomingItems.count)
-                sidebarRow("Overdue", icon: "exclamationmark.circle", tag: .inventoryOverdue, count: store.overdueItems.count, tint: store.overdueItems.isEmpty ? nil : .upkeepRed)
-                sidebarRow("All Items", icon: "checklist", tag: .inventoryAll, count: store.activeItems.count)
+                sidebarRow("Upcoming", icon: "clock", tag: .inventoryUpcoming, count: store.upcomingItems.count, identifier: "sidebar.upcoming")
+                sidebarRow("Overdue", icon: "exclamationmark.circle", tag: .inventoryOverdue, count: store.overdueItems.count, tint: store.overdueItems.isEmpty ? nil : .upkeepRed, identifier: "sidebar.overdue")
+                sidebarRow("All Items", icon: "checklist", tag: .inventoryAll, count: store.activeItems.count, identifier: "sidebar.allItems")
             }
 
             Section("Journal") {
-                sidebarRow("Log", icon: "book", tag: .log, count: store.logEntries.count)
+                sidebarRow("Log", icon: "book", tag: .log, count: store.logEntries.count, identifier: "sidebar.log")
             }
 
             Section("Contacts") {
-                sidebarRow("Vendors", icon: "person.2", tag: .vendors, count: store.vendors.count)
+                sidebarRow("Vendors", icon: "person.2", tag: .vendors, count: store.vendors.count, identifier: "sidebar.vendors")
             }
 
             Section("Home") {
-                Label("Home Profile", systemImage: "house")
-                    .tag(NavigationItem.homeProfile)
+                NavigationLink(value: NavigationItem.homeProfile) {
+                    Label("Home Profile", systemImage: "house")
+                }
+                .accessibilityIdentifier("sidebar.homeProfile")
             }
         }
         .listStyle(.sidebar)
+        .accessibilityIdentifier("sidebar")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack(spacing: 12) {
                 SettingsLink {
@@ -60,19 +65,21 @@ struct SidebarView: View {
         .navigationTitle("Upkeep")
     }
 
-    private func sidebarRow(_ title: String, icon: String, tag: NavigationItem, count: Int, tint: Color? = nil) -> some View {
-        HStack {
-            Label(title, systemImage: icon)
-                .foregroundStyle(tint ?? .primary)
-            Spacer()
-            if count > 0 {
-                Text("\(count)")
-                    .font(.caption2)
-                    .foregroundStyle(tint ?? .secondary)
-                    .monospacedDigit()
+    private func sidebarRow(_ title: String, icon: String, tag: NavigationItem, count: Int, tint: Color? = nil, identifier: String) -> some View {
+        NavigationLink(value: tag) {
+            HStack {
+                Label(title, systemImage: icon)
+                    .foregroundStyle(tint ?? .primary)
+                Spacer()
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.caption2)
+                        .foregroundStyle(tint ?? .secondary)
+                        .monospacedDigit()
+                }
             }
         }
-        .tag(tag)
+        .accessibilityIdentifier(identifier)
     }
 
     private func exportReport() {

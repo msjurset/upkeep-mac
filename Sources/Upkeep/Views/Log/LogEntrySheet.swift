@@ -52,8 +52,7 @@ struct LogEntrySheet: View {
                         }
                     }
 
-                    TextField("Title", text: $title)
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Title", text: $title)
 
                     Picker("Category", selection: $category) {
                         ForEach(MaintenanceCategory.allCases) { cat in
@@ -65,11 +64,9 @@ struct LogEntrySheet: View {
                 Section("Details") {
                     DatePicker("Date completed", selection: $completedDate, displayedComponents: .date)
 
-                    TextField("Performed by", text: $performedBy, prompt: Text("Self, vendor name, etc."))
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Performed by", text: $performedBy, prompt: "Self, vendor name, etc.")
 
-                    TextField("Cost", text: $costString, prompt: Text("Optional"))
-                        .textFieldStyle(.roundedBorder)
+                    LeadingTextField(label: "Cost", text: $costString, prompt: "Optional")
 
                     HStack(spacing: 4) {
                         Text("Satisfaction")

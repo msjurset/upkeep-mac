@@ -51,4 +51,13 @@ release:
 	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=1.1.0" && exit 1)
 	./scripts/release.sh $(VERSION)
 
-.PHONY: build bundle icon deploy clean test seed backup restore backups release
+uitest:
+	xcodegen generate
+	xcodebuild test \
+		-project Upkeep.xcodeproj \
+		-scheme Upkeep \
+		-only-testing UpkeepUITests \
+		-destination 'platform=macOS' \
+		| tail -60
+
+.PHONY: build bundle icon deploy clean test uitest seed backup restore backups release

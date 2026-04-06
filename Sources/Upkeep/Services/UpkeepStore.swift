@@ -22,7 +22,7 @@ final class UpkeepStore {
 
     var localConfig: LocalConfig
     private(set) var persistence: Persistence
-    private let notifications: NotificationService
+    private let notifications: NotificationService?
     private var refreshTimer: Timer?
     private var knownVersions: [UUID: Int] = [:]
 
@@ -42,6 +42,13 @@ final class UpkeepStore {
         if config.currentMemberID == nil {
             self.needsOnboarding = true
         }
+    }
+
+    /// Test-only initializer that skips LocalConfig and NotificationService.
+    init(persistence: Persistence) {
+        self.localConfig = LocalConfig()
+        self.persistence = persistence
+        self.notifications = nil
     }
 
     func reconfigureDataLocation(_ path: String) {
@@ -359,10 +366,10 @@ final class UpkeepStore {
 
     private func syncAllNotifications() async {
         let config = (try? await persistence.loadConfig()) ?? AppConfig()
-        _ = await notifications.requestPermission()
+        _ = await notifications?.requestPermission()
         for item in activeItems {
             let due = nextDueDate(for: item)
-            await notifications.syncReminders(item: item, nextDueDate: due, daysBefore: config.defaultReminderDaysBefore)
+            await notifications?.syncReminders(item: item, nextDueDate: due, daysBefore: config.defaultReminderDaysBefore)
         }
     }
 
@@ -416,12 +423,23 @@ final class UpkeepStore {
         }
     }
 
-    func deleteItem(id: UUID) {
+    func deleteItem(id: UUID, deleteLogs: Bool = false) {
         if let item = items.first(where: { $0.id == id }) {
-            registerUndo("Delete Item") { store in store.restoreItem(item) }
+            let linkedLogs = deleteLogs ? logEntries.filter({ $0.itemID == id }) : []
+            registerUndo("Delete Item") { store in
+                store.restoreItem(item)
+                for log in linkedLogs {
+                    store.restoreLogEntry(log)
+                }
+            }
         }
         Task {
             do {
+                if deleteLogs {
+                    for entry in logEntries where entry.itemID == id {
+                        try await persistence.deleteLogEntry(id: entry.id)
+                    }
+                }
                 try await persistence.deleteItem(id: id)
                 loadAll()
             } catch {
@@ -642,10 +660,15 @@ final class UpkeepStore {
     // MARK: - Vendor CRUD
 
     func createVendor(name: String, phone: String = "", email: String = "",
-                      website: String = "", specialty: String = "", notes: String = "") {
+                      website: String = "", location: String = "",
+                      specialty: String = "",
+                      accountManager: AccountManager = AccountManager(),
+                      notes: String = "") {
         let vendor = Vendor(
             name: name, phone: phone, email: email,
-            website: website, specialty: specialty, notes: notes
+            website: website, location: location,
+            specialty: specialty, accountManager: accountManager,
+            notes: notes
         )
         registerUndo("Add Vendor") { store in store.deleteVendor(id: vendor.id) }
         Task {
@@ -675,11 +698,22 @@ final class UpkeepStore {
     }
 
     func deleteVendor(id: UUID) {
+        let affectedItems = items.filter { $0.vendorID == id }
         if let vendor = vendors.first(where: { $0.id == id }) {
-            registerUndo("Delete Vendor") { store in store.restoreVendor(vendor) }
+            registerUndo("Delete Vendor") { store in
+                store.restoreVendor(vendor)
+                for item in affectedItems {
+                    store.updateItem(item, actionName: "Restore Vendor Link")
+                }
+            }
         }
         Task {
             do {
+                // Clear vendorID from items that reference this vendor
+                for var item in affectedItems {
+                    item.vendorID = nil
+                    try await persistence.saveItem(item)
+                }
                 try await persistence.deleteVendor(id: id)
                 loadAll()
             } catch {

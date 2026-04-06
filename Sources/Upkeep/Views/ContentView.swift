@@ -143,14 +143,19 @@ struct ContentListView: View {
         switch store.navigation {
         case .inventoryUpcoming:
             ItemListView(items: store.upcomingItems, title: "Upcoming", showNewItemSheet: $showNewItemSheet)
+                .accessibilityIdentifier("list.items")
         case .inventoryOverdue:
             ItemListView(items: store.overdueItems, title: "Overdue", showNewItemSheet: $showNewItemSheet)
+                .accessibilityIdentifier("list.items")
         case .inventoryAll:
             ItemListView(items: store.filteredActiveItems, title: "All Items", showNewItemSheet: $showNewItemSheet)
+                .accessibilityIdentifier("list.items")
         case .log, .logEntryDetail:
             LogView(showNewLogEntrySheet: $showNewLogEntrySheet)
+                .accessibilityIdentifier("list.log")
         case .vendors, .vendorDetail:
             VendorListView(showNewVendorSheet: $showNewVendorSheet)
+                .accessibilityIdentifier("list.vendors")
         default:
             Text("Select a section")
                 .foregroundStyle(.secondary)
@@ -167,28 +172,37 @@ struct DetailView: View {
         switch store.navigation {
         case .dashboard:
             DashboardView()
+                .accessibilityIdentifier("detail.dashboard")
         case .inventoryUpcoming, .inventoryOverdue, .inventoryAll, .itemDetail:
             if let item = store.selectedItem {
                 ItemDetailView(item: item)
+                    .accessibilityIdentifier("detail.item")
             } else {
                 EmptyDetailView(icon: "wrench.and.screwdriver", message: "Select an item to view details")
+                    .accessibilityIdentifier("detail.empty.item")
             }
         case .log, .logEntryDetail:
             if let entry = store.selectedLogEntry {
                 LogEntryDetailView(entry: entry)
+                    .accessibilityIdentifier("detail.logEntry")
             } else {
                 EmptyDetailView(icon: "book", message: "Select a log entry to view details")
+                    .accessibilityIdentifier("detail.empty.log")
             }
         case .vendors, .vendorDetail:
             if let vendor = store.selectedVendor {
                 VendorDetailView(vendor: vendor)
+                    .accessibilityIdentifier("detail.vendor")
             } else {
                 EmptyDetailView(icon: "person.2", message: "Select a vendor to view details")
+                    .accessibilityIdentifier("detail.empty.vendor")
             }
         case .homeProfile:
             HomeProfileView()
+                .accessibilityIdentifier("detail.homeProfile")
         case nil:
             EmptyDetailView(icon: "house", message: "Welcome to Upkeep")
+                .accessibilityIdentifier("detail.empty")
         }
     }
 }
@@ -209,6 +223,7 @@ struct EmptyDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("emptyDetail")
     }
 }
 
