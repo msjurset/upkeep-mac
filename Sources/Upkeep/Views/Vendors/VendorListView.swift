@@ -43,24 +43,12 @@ struct VendorListView: View {
         }
         .overlay {
             if store.vendors.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.2")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(.upkeepAmber.opacity(0.5))
-                    Text("No vendors")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text("Add service providers and contractors")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Button("Add Vendor") {
-                        showNewVendorSheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.upkeepAmber)
-                    .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyListOverlay(
+                    icon: "person.2",
+                    title: "No vendors",
+                    message: "Add service providers and contractors",
+                    buttonLabel: "Add Vendor"
+                ) { showNewVendorSheet = true }
             }
         }
         .navigationTitle("Vendors")

@@ -15,7 +15,6 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var snoozedUntil: Date?
     var followUps: [FollowUp]
     var isActive: Bool
-    var assignedTo: UUID?
     var version: Int
     var lastModifiedBy: UUID?
     var createdAt: Date
@@ -26,7 +25,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
          notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
          tags: [String] = [], snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
-         isActive: Bool = true, assignedTo: UUID? = nil,
+         isActive: Bool = true,
          version: Int = 1, lastModifiedBy: UUID? = nil,
          createdAt: Date = .now, updatedAt: Date = .now) {
         self.id = id
@@ -43,7 +42,6 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.snoozedUntil = snoozedUntil
         self.followUps = followUps
         self.isActive = isActive
-        self.assignedTo = assignedTo
         self.version = version
         self.lastModifiedBy = lastModifiedBy
         self.createdAt = createdAt
@@ -66,7 +64,6 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
         followUps = try container.decodeIfPresent([FollowUp].self, forKey: .followUps) ?? []
         isActive = try container.decode(Bool.self, forKey: .isActive)
-        assignedTo = try container.decodeIfPresent(UUID.self, forKey: .assignedTo)
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
         lastModifiedBy = try container.decodeIfPresent(UUID.self, forKey: .lastModifiedBy)
         createdAt = try container.decode(Date.self, forKey: .createdAt)

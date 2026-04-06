@@ -843,7 +843,11 @@ final class UpkeepStore {
         guard !q.isEmpty else { return [] }
         var results: [SearchResult] = []
 
-        for item in items where item.name.lowercased().contains(q) || item.tags.contains(where: { $0.contains(q) }) || item.notes.lowercased().contains(q) {
+        for item in items where item.name.lowercased().contains(q)
+            || item.tags.contains(where: { $0.contains(q) })
+            || item.notes.lowercased().contains(q)
+            || (item.supply?.productName.lowercased().contains(q) == true)
+            || item.followUps.contains(where: { $0.title.lowercased().contains(q) }) {
             results.append(SearchResult(id: item.id, kind: .item, title: item.name,
                                         subtitle: "\(item.category.label) ~ \(item.frequencyDescription)",
                                         icon: item.category.icon, tint: item.category))
@@ -855,7 +859,10 @@ final class UpkeepStore {
                                         icon: "book", tint: entry.category))
         }
 
-        for vendor in vendors where vendor.name.lowercased().contains(q) || vendor.specialty.lowercased().contains(q) {
+        for vendor in vendors where vendor.name.lowercased().contains(q)
+            || vendor.specialty.lowercased().contains(q)
+            || vendor.notes.lowercased().contains(q)
+            || vendor.tags.contains(where: { $0.contains(q) }) {
             results.append(SearchResult(id: vendor.id, kind: .vendor, title: vendor.name,
                                         subtitle: vendor.specialty.isEmpty ? "Vendor" : vendor.specialty,
                                         icon: "person.circle", tint: nil))

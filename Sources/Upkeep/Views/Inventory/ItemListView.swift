@@ -7,6 +7,8 @@ struct ItemListView: View {
     @Binding var showNewItemSheet: Bool
 
     @FocusState private var searchFocused: Bool
+    @State private var bulkSelection: Set<UUID> = []
+    @State private var isBulkMode = false
 
     var body: some View {
         @Bindable var store = store
@@ -36,6 +38,16 @@ struct ItemListView: View {
             Divider()
 
             HStack {
+                Button {
+                    isBulkMode.toggle()
+                    if !isBulkMode { bulkSelection.removeAll() }
+                } label: {
+                    Label(isBulkMode ? "Done" : "Select", systemImage: isBulkMode ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 Spacer()
                 addButton { showNewItemSheet = true }
             }
@@ -43,49 +55,90 @@ struct ItemListView: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
 
-            List(selection: $store.selectedItemID) {
-                ForEach(items) { item in
-                    ItemRow(item: item)
-                        .tag(item.id)
-                        .contextMenu {
-                            Button("Log Completion") {
-                                store.logCompletion(
-                                    itemID: item.id, title: item.name,
-                                    category: item.category, performedBy: "Self"
-                                )
+            if isBulkMode {
+                List(selection: $bulkSelection) {
+                    ForEach(items) { item in
+                        ItemRow(item: item)
+                            .tag(item.id)
+                    }
+                }
+                .listStyle(.inset(alternatesRowBackgrounds: true))
+            } else {
+                List(selection: $store.selectedItemID) {
+                    ForEach(items) { item in
+                        ItemRow(item: item)
+                            .tag(item.id)
+                            .contextMenu {
+                                Button("Log Completion") {
+                                    store.logCompletion(
+                                        itemID: item.id, title: item.name,
+                                        category: item.category, performedBy: "Self"
+                                    )
+                                }
+                                Button("Snooze 7 Days") {
+                                    store.snoozeItem(id: item.id, days: 7)
+                                }
+                                Divider()
+                                Button("Delete", role: .destructive) {
+                                    store.deleteItem(id: item.id)
+                                }
                             }
-                            Button("Snooze 7 Days") {
-                                store.snoozeItem(id: item.id, days: 7)
-                            }
-                            Divider()
-                            Button("Delete", role: .destructive) {
-                                store.deleteItem(id: item.id)
+                    }
+                }
+                .listStyle(.inset(alternatesRowBackgrounds: true))
+            }
+
+            // Bulk action bar
+            if isBulkMode && !bulkSelection.isEmpty {
+                Divider()
+                HStack(spacing: 12) {
+                    Text("\(bulkSelection.count) selected")
+                        .font(.callout.weight(.medium))
+
+                    Spacer()
+
+                    Button("Snooze 7d") {
+                        for id in bulkSelection {
+                            store.snoozeItem(id: id, days: 7)
+                        }
+                        bulkSelection.removeAll()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Deactivate") {
+                        for id in bulkSelection {
+                            if var item = store.items.first(where: { $0.id == id }) {
+                                item.isActive = false
+                                store.updateItem(item, actionName: "Deactivate")
                             }
                         }
+                        bulkSelection.removeAll()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Delete", role: .destructive) {
+                        for id in bulkSelection {
+                            store.deleteItem(id: id)
+                        }
+                        bulkSelection.removeAll()
+                    }
+                    .controlSize(.small)
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
         }
         .overlay {
             if items.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(.upkeepAmber.opacity(0.5))
-                    Text("No items")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text("Add maintenance items to track your home's needs")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Button("Add Item") {
-                        showNewItemSheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.upkeepAmber)
-                    .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyListOverlay(
+                    icon: "wrench.and.screwdriver",
+                    title: "No items",
+                    message: "Add maintenance items to track your home's needs",
+                    buttonLabel: "Add Item"
+                ) { showNewItemSheet = true }
             }
         }
         .navigationTitle(title)

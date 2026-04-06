@@ -15,6 +15,8 @@ struct ItemDetailView: View {
     @State private var followUpTitle = ""
     @State private var followUpHasDate = false
     @State private var followUpDate = Date.now
+    @State private var localStock: Int?
+    @State private var stockDebounce: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
@@ -417,9 +419,18 @@ struct ItemDetailView: View {
                     Text("Adjust stock:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Stepper("\(supply.stockOnHand)", value: Binding(
-                        get: { supply.stockOnHand },
-                        set: { store.updateSupply(itemID: item.id, stockOnHand: $0) }
+                    Stepper("\(localStock ?? supply.stockOnHand)", value: Binding(
+                        get: { localStock ?? supply.stockOnHand },
+                        set: { newValue in
+                            localStock = newValue
+                            stockDebounce?.cancel()
+                            stockDebounce = Task {
+                                try? await Task.sleep(for: .milliseconds(500))
+                                guard !Task.isCancelled else { return }
+                                store.updateSupply(itemID: item.id, stockOnHand: newValue)
+                                localStock = nil
+                            }
+                        }
                     ), in: 0...999)
                     .frame(width: 120)
                 }

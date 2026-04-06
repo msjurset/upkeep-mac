@@ -39,24 +39,12 @@ struct LogView: View {
         .listStyle(.inset(alternatesRowBackgrounds: true))
         .overlay {
             if store.logEntries.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "book")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(.upkeepAmber.opacity(0.5))
-                    Text("No log entries")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text("Log maintenance work as you go — routine or one-off")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Button("New Entry") {
-                        showNewLogEntrySheet = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.upkeepAmber)
-                    .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyListOverlay(
+                    icon: "book",
+                    title: "No log entries",
+                    message: "Log maintenance work as you go — routine or one-off",
+                    buttonLabel: "New Entry"
+                ) { showNewLogEntrySheet = true }
             }
         }
         } // end VStack
