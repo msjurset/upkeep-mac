@@ -1,5 +1,14 @@
 import SwiftUI
 
+@Observable
+@MainActor
+private final class InlineTagSuggestState {
+    var selectedIndex: Int = -1
+    var showSuggestions = true
+    var isPreviewing = false
+    var cyclePool: [String]?
+}
+
 struct InlineTagEditor: View {
     @Environment(UpkeepStore.self) private var store
     let tags: [String]
@@ -9,17 +18,22 @@ struct InlineTagEditor: View {
     var onRemove: ((String) -> Void)?
     var onTap: ((String) -> Void)?
     @FocusState private var fieldFocused: Bool
+    @State private var state = InlineTagSuggestState()
+    @State private var eventMonitor: Any?
 
-    private var suggestions: [String] {
+    private var filteredSuggestions: [String] {
         let existing = Set(tags.map { $0.lowercased() })
         let query = newTagText.lowercased()
-        let all = store.allTags
+        let all = store.allTags.filter { !existing.contains($0.lowercased()) }
         if query.isEmpty {
-            return all.filter { !existing.contains($0.lowercased()) }
+            return all
         }
-        return all.filter {
-            $0.lowercased().contains(query) && !existing.contains($0.lowercased())
-        }
+        return all.filter { $0.lowercased().contains(query) }
+    }
+
+    private var displayedSuggestions: [String] {
+        guard state.showSuggestions else { return [] }
+        return Array((state.cyclePool ?? filteredSuggestions).prefix(8))
     }
 
     var body: some View {
@@ -49,6 +63,9 @@ struct InlineTagEditor: View {
                 Button {
                     isAddingTag = true
                     newTagText = ""
+                    state.selectedIndex = -1
+                    state.showSuggestions = true
+                    state.cyclePool = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         fieldFocused = true
                     }
@@ -74,8 +91,30 @@ struct InlineTagEditor: View {
                     .font(.caption2.weight(.medium))
                     .frame(width: 90)
                     .focused($fieldFocused)
-                    .onSubmit { commitTag() }
+                    .onSubmit {
+                        if state.selectedIndex >= 0 && state.selectedIndex < displayedSuggestions.count {
+                            acceptSuggestion(displayedSuggestions[state.selectedIndex])
+                        } else {
+                            commitTag()
+                        }
+                    }
                     .onExitCommand { cancelAdd() }
+                    .onChange(of: newTagText) {
+                        if state.isPreviewing {
+                            state.isPreviewing = false
+                            return
+                        }
+                        state.selectedIndex = -1
+                        state.showSuggestions = true
+                        state.cyclePool = nil
+                    }
+                    .onChange(of: fieldFocused) {
+                        if fieldFocused {
+                            installMonitor()
+                        } else {
+                            removeMonitor()
+                        }
+                    }
 
                 Button {
                     commitTag()
@@ -102,36 +141,77 @@ struct InlineTagEditor: View {
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.upkeepAmber.opacity(0.3), lineWidth: 0.5))
 
-            if !suggestions.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(suggestions.prefix(8), id: \.self) { suggestion in
-                            Button {
-                                newTagText = suggestion
-                                commitTag()
-                            } label: {
-                                Text(suggestion)
-                                    .font(.callout)
-                                    .foregroundStyle(.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 8)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(maxHeight: 150)
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(.separator, lineWidth: 0.5)
-                )
-                .padding(.top, 2)
+            if !displayedSuggestions.isEmpty {
+                suggestionsDropdown
             }
         }
+        .onDisappear { removeMonitor() }
+    }
+
+    private var suggestionsDropdown: some View {
+        let items = displayedSuggestions
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { index, suggestion in
+                        Button {
+                            acceptSuggestion(suggestion)
+                        } label: {
+                            Text(suggestion)
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                                .background(index == state.selectedIndex ? Color.accentColor.opacity(0.2) : .clear)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(index)
+                    }
+                }
+            }
+            .frame(maxHeight: 150)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator, lineWidth: 0.5))
+            .padding(.top, 2)
+            .onChange(of: state.selectedIndex) {
+                if state.selectedIndex >= 0 {
+                    proxy.scrollTo(state.selectedIndex, anchor: .center)
+                }
+            }
+        }
+    }
+
+    private func acceptSuggestion(_ suggestion: String) {
+        state.isPreviewing = true
+        newTagText = suggestion
+        commitTag()
+    }
+
+    private func previewSuggestion(_ suggestion: String) {
+        state.isPreviewing = true
+        newTagText = suggestion
+    }
+
+    private func advanceSelection(by delta: Int) {
+        if state.cyclePool == nil {
+            let pool = Array(filteredSuggestions.prefix(8))
+            guard !pool.isEmpty else { return }
+            state.cyclePool = pool
+        }
+        let pool = state.cyclePool!
+        let count = pool.count
+        state.showSuggestions = true
+        let newIndex: Int
+        if state.selectedIndex < 0 {
+            newIndex = delta > 0 ? 0 : count - 1
+        } else {
+            newIndex = (state.selectedIndex + delta + count) % count
+        }
+        state.selectedIndex = newIndex
+        previewSuggestion(pool[newIndex])
     }
 
     private func commitTag() {
@@ -140,11 +220,75 @@ struct InlineTagEditor: View {
         onAdd(trimmed)
         newTagText = ""
         isAddingTag = false
+        removeMonitor()
     }
 
     private func cancelAdd() {
         newTagText = ""
         isAddingTag = false
+        removeMonitor()
+    }
+
+    private func installMonitor() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard fieldFocused else { return event }
+
+            if event.keyCode == 48 /* Tab */ {
+                let pool = state.cyclePool ?? filteredSuggestions
+                if !pool.isEmpty {
+                    advanceSelection(by: event.modifierFlags.contains(.shift) ? -1 : 1)
+                    return nil
+                }
+                return event
+            }
+
+            if event.keyCode == 125 /* Down */ || (event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "j") {
+                let pool = state.cyclePool ?? filteredSuggestions
+                if !pool.isEmpty {
+                    advanceSelection(by: 1)
+                    return nil
+                }
+                return event
+            }
+
+            if event.keyCode == 126 /* Up */ || (event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "k") {
+                let pool = state.cyclePool ?? filteredSuggestions
+                if !pool.isEmpty {
+                    advanceSelection(by: -1)
+                    return nil
+                }
+                return event
+            }
+
+            if event.keyCode == 53 /* Escape */ {
+                if state.showSuggestions && !displayedSuggestions.isEmpty {
+                    state.showSuggestions = false
+                    state.selectedIndex = -1
+                    state.cyclePool = nil
+                    return nil
+                }
+                return event
+            }
+
+            if event.keyCode == 36 /* Return */ {
+                let pool = displayedSuggestions
+                if state.selectedIndex >= 0 && state.selectedIndex < pool.count {
+                    acceptSuggestion(pool[state.selectedIndex])
+                    return nil
+                }
+                return event
+            }
+
+            return event
+        }
+    }
+
+    private func removeMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
     }
 }
 

@@ -19,6 +19,24 @@ struct VendorListView: View {
                 ForEach(store.vendors) { vendor in
                     VendorRow(vendor: vendor)
                         .tag(vendor.id)
+                        .contextMenu {
+                            if !vendor.phone.isEmpty {
+                                Button("Copy Phone") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(vendor.phone, forType: .string)
+                                }
+                            }
+                            if !vendor.email.isEmpty {
+                                Button("Copy Email") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(vendor.email, forType: .string)
+                                }
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                store.deleteVendor(id: vendor.id)
+                            }
+                        }
                 }
             }
             .listStyle(.inset(alternatesRowBackgrounds: true))

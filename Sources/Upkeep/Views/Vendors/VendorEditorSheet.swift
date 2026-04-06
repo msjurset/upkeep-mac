@@ -12,6 +12,7 @@ struct VendorEditorSheet: View {
     @State private var website = ""
     @State private var location = ""
     @State private var specialty = ""
+    @State private var tagsString = ""
     @State private var acctMgrName = ""
     @State private var acctMgrPhone = ""
     @State private var acctMgrEmail = ""
@@ -37,6 +38,7 @@ struct VendorEditorSheet: View {
                 Section("Details") {
                     LeadingTextField(label: "Name", text: $name)
                     LeadingTextField(label: "Specialty", text: $specialty, prompt: "e.g. HVAC repair, plumbing")
+                    TagSuggestField(text: $tagsString)
                 }
 
                 Section("Contact") {
@@ -84,12 +86,19 @@ struct VendorEditorSheet: View {
                 website = vendor.website
                 location = vendor.location
                 specialty = vendor.specialty
+                tagsString = vendor.tags.joined(separator: ", ")
                 acctMgrName = vendor.accountManager.name
                 acctMgrPhone = vendor.accountManager.phone
                 acctMgrEmail = vendor.accountManager.email
                 notes = vendor.notes
             }
         }
+    }
+
+    private var parsedTags: [String] {
+        tagsString.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty }
     }
 
     private func save() {
@@ -101,6 +110,7 @@ struct VendorEditorSheet: View {
             existing.website = website
             existing.location = location
             existing.specialty = specialty
+            existing.tags = parsedTags
             existing.accountManager = AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail)
             existing.notes = notes
             store.updateVendor(existing)
@@ -108,7 +118,7 @@ struct VendorEditorSheet: View {
             store.createVendor(
                 name: trimmedName, phone: phone, email: email,
                 website: website, location: location,
-                specialty: specialty,
+                specialty: specialty, tags: parsedTags,
                 accountManager: AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail),
                 notes: notes
             )

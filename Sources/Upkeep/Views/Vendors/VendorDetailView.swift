@@ -26,6 +26,15 @@ struct VendorDetailView: View {
                             }
                         }
                     }
+
+                    if !vendor.tags.isEmpty {
+                        FlowLayout(spacing: 5) {
+                            ForEach(vendor.tags, id: \.self) { tag in
+                                StyledTag(name: tag)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
                 .padding(20)
 

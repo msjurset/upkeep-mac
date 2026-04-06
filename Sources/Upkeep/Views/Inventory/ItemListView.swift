@@ -47,6 +47,21 @@ struct ItemListView: View {
                 ForEach(items) { item in
                     ItemRow(item: item)
                         .tag(item.id)
+                        .contextMenu {
+                            Button("Log Completion") {
+                                store.logCompletion(
+                                    itemID: item.id, title: item.name,
+                                    category: item.category, performedBy: "Self"
+                                )
+                            }
+                            Button("Snooze 7 Days") {
+                                store.snoozeItem(id: item.id, days: 7)
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                store.deleteItem(id: item.id)
+                            }
+                        }
                 }
             }
             .listStyle(.inset(alternatesRowBackgrounds: true))

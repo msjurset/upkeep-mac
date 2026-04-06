@@ -16,6 +16,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
     var website: String
     var location: String
     var specialty: String
+    var tags: [String]
     var accountManager: AccountManager
     var notes: String
     var version: Int
@@ -25,7 +26,8 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
 
     init(id: UUID = UUID(), name: String, phone: String = "",
          email: String = "", website: String = "", location: String = "",
-         specialty: String = "", accountManager: AccountManager = AccountManager(),
+         specialty: String = "", tags: [String] = [],
+         accountManager: AccountManager = AccountManager(),
          notes: String = "", version: Int = 1,
          lastModifiedBy: UUID? = nil, createdAt: Date = .now, updatedAt: Date = .now) {
         self.id = id
@@ -35,6 +37,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         self.website = website
         self.location = location
         self.specialty = specialty
+        self.tags = tags
         self.accountManager = accountManager
         self.notes = notes
         self.version = version
@@ -52,6 +55,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         website = try container.decode(String.self, forKey: .website)
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
         specialty = try container.decode(String.self, forKey: .specialty)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         accountManager = try container.decodeIfPresent(AccountManager.self, forKey: .accountManager) ?? AccountManager()
         notes = try container.decode(String.self, forKey: .notes)
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1

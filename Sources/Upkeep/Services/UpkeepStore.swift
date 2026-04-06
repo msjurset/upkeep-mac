@@ -314,6 +314,9 @@ final class UpkeepStore {
         for item in items {
             for tag in item.tags { tagSet.insert(tag) }
         }
+        for vendor in vendors {
+            for tag in vendor.tags { tagSet.insert(tag) }
+        }
         return tagSet.sorted()
     }
 
@@ -661,14 +664,14 @@ final class UpkeepStore {
 
     func createVendor(name: String, phone: String = "", email: String = "",
                       website: String = "", location: String = "",
-                      specialty: String = "",
+                      specialty: String = "", tags: [String] = [],
                       accountManager: AccountManager = AccountManager(),
                       notes: String = "") {
         let vendor = Vendor(
             name: name, phone: phone, email: email,
             website: website, location: location,
-            specialty: specialty, accountManager: accountManager,
-            notes: notes
+            specialty: specialty, tags: tags,
+            accountManager: accountManager, notes: notes
         )
         registerUndo("Add Vendor") { store in store.deleteVendor(id: vendor.id) }
         Task {
