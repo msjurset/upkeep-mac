@@ -37,7 +37,8 @@ struct HelpView: View {
                     ("gauge.with.dots.needle.33percent", "Health Score", "Shows how many items are on track vs overdue. Green = 80%+, amber = 50-80%, red = below 50%."),
                     ("shippingbox.fill", "Reorder Alerts", "Items with low supply stock appear here with links to purchase."),
                     ("checkmark.circle.fill", "Quick Log", "Click the green checkmark on overdue items to instantly mark them done."),
-                    ("calendar", "Timeline", "See what's coming up over the next 30 days, organized by week."),
+                    ("calendar", "30-Day Forecast", "See what's coming up over the next 30 days, organized by week."),
+                    ("arrow.left.and.right", "Timeline", "Scrollable horizontal timeline showing completed maintenance on the left, upcoming and overdue items on the right. Drag, scroll, or use the arrow buttons to navigate."),
                     ("leaf", "Seasonal", "Suggestions based on the current season for items that are due soon."),
                 ])
 

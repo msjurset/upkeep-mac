@@ -39,6 +39,12 @@ struct DashboardView: View {
             healthOverview
                 .padding(.horizontal, 24)
 
+            // Maintenance timeline
+            if !store.items.isEmpty || !store.logEntries.isEmpty {
+                MaintenanceTimelineView()
+                    .padding(.horizontal, 24)
+            }
+
             // Two-column body
             HStack(alignment: .top, spacing: 20) {
                 // Left column: action items & activity
@@ -76,6 +82,9 @@ struct DashboardView: View {
     private var narrowLayout: some View {
         VStack(alignment: .leading, spacing: 28) {
             healthOverview
+            if !store.items.isEmpty || !store.logEntries.isEmpty {
+                MaintenanceTimelineView()
+            }
             if !store.lowStockItems.isEmpty {
                 reorderAlerts
             }
