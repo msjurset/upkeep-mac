@@ -26,7 +26,7 @@ enum LaunchView: String, Codable, CaseIterable, Sendable {
     }
 }
 
-struct LocalConfig: Codable, Equatable, Sendable {
+struct LocalConfig: Equatable, Sendable {
     var currentMemberID: UUID?
     var dataLocation: String?
     var showMyTasksOnly: Bool = false
@@ -35,6 +35,22 @@ struct LocalConfig: Codable, Equatable, Sendable {
     var launchView: LaunchView = .dashboard
     var lastNavigationKey: String = "dashboard"
 
+}
+
+extension LocalConfig: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        currentMemberID = try container.decodeIfPresent(UUID.self, forKey: .currentMemberID)
+        dataLocation = try container.decodeIfPresent(String.self, forKey: .dataLocation)
+        showMyTasksOnly = try container.decodeIfPresent(Bool.self, forKey: .showMyTasksOnly) ?? false
+        appearance = try container.decodeIfPresent(AppAppearance.self, forKey: .appearance) ?? .system
+        defaultPerformer = try container.decodeIfPresent(String.self, forKey: .defaultPerformer) ?? ""
+        launchView = try container.decodeIfPresent(LaunchView.self, forKey: .launchView) ?? .dashboard
+        lastNavigationKey = try container.decodeIfPresent(String.self, forKey: .lastNavigationKey) ?? "dashboard"
+    }
+}
+
+extension LocalConfig {
     static let configURL: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("Upkeep")
