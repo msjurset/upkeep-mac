@@ -30,18 +30,22 @@ cp AppIcon.icns "${BUNDLE}/Contents/Resources/AppIcon.icns"
 
 echo "==> Creating DMG..."
 
-# Create DMG
+# Generate background if missing
+test -f dmg-background.png || swift scripts/generate-dmg-bg.swift
+
 rm -f "${DMG}"
-mkdir -p dmg_staging
-cp -R "${BUNDLE}" dmg_staging/
-ln -sf /Applications dmg_staging/Applications
-
-hdiutil create -volname "${APP_NAME}" \
-    -srcfolder dmg_staging \
-    -ov -format UDZO \
-    "${DMG}"
-
-rm -rf dmg_staging
+create-dmg \
+    --volname "${APP_NAME}" \
+    --background "dmg-background.png" \
+    --window-pos 200 120 \
+    --window-size 660 400 \
+    --icon-size 80 \
+    --icon "${BUNDLE}" 170 170 \
+    --app-drop-link 490 170 \
+    --hide-extension "${BUNDLE}" \
+    --no-internet-enable \
+    "${DMG}" \
+    "${BUNDLE}"
 
 # Sign DMG with Sparkle EdDSA
 echo "==> Signing DMG..."
