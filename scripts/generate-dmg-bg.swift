@@ -50,7 +50,7 @@ let text = "Drag Upkeep to Applications" as NSString
 let textSize = text.size(withAttributes: textAttrs)
 let textRect = NSRect(
     x: (CGFloat(width) - textSize.width) / 2,
-    y: 50,
+    y: arrowY - 60,
     width: textSize.width,
     height: textSize.height
 )
