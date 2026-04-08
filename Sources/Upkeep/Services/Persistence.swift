@@ -17,7 +17,10 @@ enum PersistenceError: Error, LocalizedError {
 actor Persistence {
     static let shared = Persistence()
 
+    /// Shared data directory (items, logs, vendors, etc.) — may be on Google Drive or other synced location.
     let baseURL: URL
+    /// Local-only directory (~/.upkeep/) for instance-specific data like backups.
+    let localURL: URL
     private let itemsDir: URL
     private let logDir: URL
     private let vendorsDir: URL
@@ -29,6 +32,7 @@ actor Persistence {
     init(baseURL: URL? = nil) {
         let base = baseURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".upkeep")
         self.baseURL = base
+        self.localURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".upkeep")
         self.itemsDir = base.appendingPathComponent("items")
         self.logDir = base.appendingPathComponent("log")
         self.vendorsDir = base.appendingPathComponent("vendors")
@@ -44,7 +48,7 @@ actor Persistence {
         self.decoder = dec
 
         let fm = FileManager.default
-        for dir in [base, itemsDir, logDir, vendorsDir, photosDir] {
+        for dir in [base, localURL, itemsDir, logDir, vendorsDir, photosDir] {
             if !fm.fileExists(atPath: dir.path) {
                 try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }
@@ -168,7 +172,7 @@ actor Persistence {
     // MARK: - Backup & Restore
 
     func backup() throws -> URL {
-        let backupsDir = baseURL.appendingPathComponent("backups")
+        let backupsDir = localURL.appendingPathComponent("backups")
         let fm = FileManager.default
         if !fm.fileExists(atPath: backupsDir.path) {
             try fm.createDirectory(at: backupsDir, withIntermediateDirectories: true)
@@ -272,7 +276,7 @@ actor Persistence {
     }
 
     func listBackups() throws -> [URL] {
-        let backupsDir = baseURL.appendingPathComponent("backups")
+        let backupsDir = localURL.appendingPathComponent("backups")
         let fm = FileManager.default
         guard fm.fileExists(atPath: backupsDir.path) else { return [] }
         let contents = try fm.contentsOfDirectory(at: backupsDir, includingPropertiesForKeys: [.contentModificationDateKey])

@@ -16,7 +16,33 @@ Upkeep is a SwiftUI macOS app for tracking home maintenance inventory and loggin
 - Uses Swift 6.0 Testing framework (`@Test`, `#expect`), not XCTest
 - macOS 15.0+ only, no external dependencies
 - `@Observable` + `@MainActor` for state management
-- File-based JSON persistence in `~/.upkeep/` (items/, log/, vendors/, config.json)
+- File-based JSON persistence with split storage (see Data Storage below)
+
+# Data Storage
+
+Storage is split between shared and local directories:
+
+## Shared data (configurable via Settings > Data Location)
+Default: `~/.upkeep/`. Can be pointed at a synced folder (e.g. Google Drive) for household sharing.
+- `items/` — maintenance items (one JSON file per item, named by UUID)
+- `log/` — log entries
+- `vendors/` — vendor records
+- `photos/` — attached photos
+- `config.json` — app-wide settings (reminders, dashboard prefs)
+- `home.json` — home profile and major systems
+- `members.json` — household members
+
+## Local data (always `~/.upkeep/`, never synced)
+- `backups/` — backup ZIP archives
+
+## Instance config (always `~/Library/Application Support/Upkeep/`)
+- `local-config.json` — current member ID, custom data path, UI prefs
+
+## Setting up shared storage
+1. Create a folder in Google Drive (or other sync service)
+2. Copy shared data: `cp -R ~/.upkeep/{items,log,vendors,photos,config.json,home.json,members.json} "/path/to/Google Drive/Upkeep/"`
+3. In Upkeep, go to Settings > Data Location > Change... and select the Google Drive folder
+4. Backups remain local in `~/.upkeep/backups/`
 
 # Data Flow
 

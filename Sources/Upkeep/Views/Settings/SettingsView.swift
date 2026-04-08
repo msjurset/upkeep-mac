@@ -61,21 +61,39 @@ struct SettingsView: View {
             }
 
             Section("Data Location") {
-                HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Shared data")
+                            .font(.caption.weight(.medium))
+                        Spacer()
+                        Button("Change...") {
+                            let panel = NSOpenPanel()
+                            panel.canChooseDirectories = true
+                            panel.canChooseFiles = false
+                            panel.canCreateDirectories = true
+                            if panel.runModal() == .OK, let url = panel.url {
+                                store.reconfigureDataLocation(url.path)
+                            }
+                        }
+                        .controlSize(.small)
+                    }
                     Text(store.localConfig.dataLocation ?? "~/.upkeep/ (default)")
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Change...") {
-                        let panel = NSOpenPanel()
-                        panel.canChooseDirectories = true
-                        panel.canChooseFiles = false
-                        panel.canCreateDirectories = true
-                        if panel.runModal() == .OK, let url = panel.url {
-                            store.reconfigureDataLocation(url.path)
-                        }
-                    }
-                    .controlSize(.small)
+                    Text("Items, logs, vendors, and photos. Can be a synced folder for household sharing.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+
+                    Divider()
+
+                    Text("Local data")
+                        .font(.caption.weight(.medium))
+                    Text("~/.upkeep/")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    Text("Backups and instance-specific settings. Not synced.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
 
