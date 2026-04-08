@@ -84,6 +84,10 @@ struct MaintenanceTimelineView: View {
                                 dragStartOffset = scrollOffset
                             }
                     )
+                    // Sticky section labels that float above the timeline content.
+                    .overlay {
+                        sectionLabels(entries: entries, viewWidth: vw)
+                    }
                     // Arrows are overlays on the *clipped* frame so they sit at viewport edges.
                     .overlay(alignment: .leading) {
                         scrollArrow(direction: .left, maxOffset: maxOffset)
@@ -314,6 +318,57 @@ struct MaintenanceTimelineView: View {
             Spacer(minLength: 0)
         }
         .frame(width: nowDividerWidth, height: timelineHeight)
+    }
+
+    // MARK: - Section Labels
+
+    /// Sticky floating labels ("ACTIVITY" on the left, "UPCOMING" on the right) that
+    /// sit above the timeline content. Each label has a natural content-space position
+    /// (1/3 and 2/3 of viewport at initial scroll) and clamps at the viewport center
+    /// so it stays visible as a section indicator when scrolling deep into the
+    /// opposite direction.
+    ///
+    /// - "ACTIVITY" clamps at center when scrolling to reveal history (right drag).
+    /// - "UPCOMING" clamps at center when scrolling to reveal future (left drag).
+    ///
+    /// Labels fade out as they approach the viewport edges.
+    private func sectionLabels(entries: [TimelineEntry], viewWidth vw: CGFloat) -> some View {
+        let nowCenter = nowDividerCenter(entries: entries)
+
+        // Content-space X: symmetrically offset from the Now divider by 1/4 of viewport.
+        // At default scroll (Now centered), these land at the midpoint between the
+        // viewport edge and the Now divider (1/4 and 3/4 of the viewport).
+        let leftContentX = nowCenter - vw / 4
+        let rightContentX = nowCenter + vw / 4
+
+        // Screen X = content position minus scroll offset, clamped at center.
+        let leftRawX = leftContentX - scrollOffset
+        let leftX = min(leftRawX, vw / 2)
+
+        let rightRawX = rightContentX - scrollOffset
+        let rightX = max(rightRawX, vw / 2)
+
+        // Fade out near viewport edges (within 60px of the edge).
+        let edgeFade: CGFloat = 60
+        let leftOpacity = min(1.0, max(0.0, leftX / edgeFade))
+        let rightOpacity = min(1.0, max(0.0, (vw - rightX) / edgeFade))
+
+        return ZStack {
+            Text("ACTIVITY TIMELINE")
+                .font(.system(size: 9, weight: .semibold, design: .default))
+                .tracking(1.5)
+                .foregroundStyle(.upkeepAmber.opacity(0.5))
+                .position(x: leftX, y: -4)
+                .opacity(leftOpacity)
+
+            Text("UPCOMING")
+                .font(.system(size: 9, weight: .semibold, design: .default))
+                .tracking(1.5)
+                .foregroundStyle(.upkeepAmber.opacity(0.5))
+                .position(x: rightX, y: -4)
+                .opacity(rightOpacity)
+        }
+        .allowsHitTesting(false)
     }
 
     // MARK: - Scroll Arrows

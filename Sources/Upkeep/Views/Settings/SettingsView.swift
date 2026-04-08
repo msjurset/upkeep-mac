@@ -51,6 +51,50 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Appearance") {
+                Picker("Theme", selection: Binding(
+                    get: { store.localConfig.appearance },
+                    set: {
+                        store.localConfig.appearance = $0
+                        store.localConfig.save()
+                    }
+                )) {
+                    ForEach(AppAppearance.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section("Defaults") {
+                HStack {
+                    Text("Default performer")
+                    Spacer()
+                    TextField("e.g. Self", text: Binding(
+                        get: { store.localConfig.defaultPerformer },
+                        set: {
+                            store.localConfig.defaultPerformer = $0
+                            store.localConfig.save()
+                        }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
+                    .multilineTextAlignment(.trailing)
+                }
+
+                Picker("Open on launch", selection: Binding(
+                    get: { store.localConfig.launchView },
+                    set: {
+                        store.localConfig.launchView = $0
+                        store.localConfig.save()
+                    }
+                )) {
+                    ForEach(LaunchView.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+            }
+
             Section("Notifications") {
                 Stepper("Remind \(config.defaultReminderDaysBefore) days before due", value: $config.defaultReminderDaysBefore, in: 1...30)
             }
@@ -130,7 +174,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 450, height: 520)
+        .frame(width: 450, height: 680)
         .onAppear {
             Task {
                 if let loaded = try? await store.loadConfig() {

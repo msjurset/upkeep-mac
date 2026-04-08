@@ -8,7 +8,14 @@ final class UpkeepStore {
     var vendors: [Vendor] = []
     var members: [HouseholdMember] = []
 
-    var navigation: NavigationItem? = .dashboard
+    var navigation: NavigationItem? = .dashboard {
+        didSet {
+            if let navigation {
+                localConfig.lastNavigationKey = navigation.sectionKey
+                localConfig.save()
+            }
+        }
+    }
     var selectedItemID: UUID?
     var selectedVendorID: UUID?
     var selectedLogEntryID: UUID?
@@ -27,6 +34,14 @@ final class UpkeepStore {
     private var knownVersions: [UUID: Int] = [:]
 
     var currentMemberID: UUID? { localConfig.currentMemberID }
+
+    var colorScheme: ColorScheme? {
+        switch localConfig.appearance {
+        case .system: nil
+        case .dark: .dark
+        case .light: .light
+        }
+    }
 
     var currentMember: HouseholdMember? {
         guard let id = currentMemberID else { return nil }
@@ -49,6 +64,12 @@ final class UpkeepStore {
             if config.currentMemberID == nil {
                 self.needsOnboarding = true
             }
+        }
+
+        // Restore last-used view if configured
+        if config.launchView == .lastUsed,
+           let restored = NavigationItem.from(sectionKey: config.lastNavigationKey) {
+            self.navigation = restored
         }
     }
 

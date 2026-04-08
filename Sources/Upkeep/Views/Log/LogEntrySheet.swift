@@ -92,11 +92,14 @@ struct LogEntrySheet: View {
                 if let cost = entry.cost {
                     costString = "\(cost)"
                 }
-            } else if let itemID {
-                selectedItemID = itemID
-                if let item = store.items.first(where: { $0.id == itemID }) {
-                    title = item.name
-                    category = item.category
+            } else {
+                performedBy = store.localConfig.defaultPerformer
+                if let itemID {
+                    selectedItemID = itemID
+                    if let item = store.items.first(where: { $0.id == itemID }) {
+                        title = item.name
+                        category = item.category
+                    }
                 }
             }
         }

@@ -18,6 +18,7 @@ struct UpkeepApp: App {
                         .environment(store)
                 }
             }
+            .preferredColorScheme(store.colorScheme)
             .onAppear {
                 store.startBackgroundRefresh()
             }
@@ -41,6 +42,7 @@ struct UpkeepApp: App {
         Settings {
             SettingsView()
                 .environment(store)
+                .preferredColorScheme(store.colorScheme)
         }
 
         WindowGroup("Upkeep Help", id: "help") {

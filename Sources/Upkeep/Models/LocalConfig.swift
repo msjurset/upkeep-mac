@@ -1,9 +1,39 @@
 import Foundation
 
+enum AppAppearance: String, Codable, CaseIterable, Sendable {
+    case system
+    case dark
+    case light
+
+    var label: String {
+        switch self {
+        case .system: "System"
+        case .dark: "Dark"
+        case .light: "Light"
+        }
+    }
+}
+
+enum LaunchView: String, Codable, CaseIterable, Sendable {
+    case dashboard
+    case lastUsed
+
+    var label: String {
+        switch self {
+        case .dashboard: "Dashboard"
+        case .lastUsed: "Last Used"
+        }
+    }
+}
+
 struct LocalConfig: Codable, Equatable, Sendable {
     var currentMemberID: UUID?
     var dataLocation: String?
     var showMyTasksOnly: Bool = false
+    var appearance: AppAppearance = .system
+    var defaultPerformer: String = ""
+    var launchView: LaunchView = .dashboard
+    var lastNavigationKey: String = "dashboard"
 
     static let configURL: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
