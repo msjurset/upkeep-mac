@@ -6,6 +6,8 @@ APP_NAME="Upkeep"
 BUNDLE="${APP_NAME}.app"
 DMG="${APP_NAME}-${VERSION}.dmg"
 SIGN_TOOL=".build/artifacts/sparkle/Sparkle/bin/sign_update"
+SIGN_IDENTITY="Developer ID Application: Mark Sjurseth (RR3C36U9G4)"
+NOTARY_PROFILE="notarytool-profile"
 BUILD_NUM=$(git rev-list --count HEAD 2>/dev/null || echo "1")
 
 echo "==> Building Upkeep v${VERSION} (build ${BUILD_NUM})..."
@@ -28,6 +30,30 @@ cp -R .build/arm64-apple-macosx/release/Sparkle.framework "${BUNDLE}/Contents/Fr
 test -f AppIcon.icns || swift scripts/generate-icon.swift
 cp AppIcon.icns "${BUNDLE}/Contents/Resources/AppIcon.icns"
 
+# Codesign
+echo "==> Codesigning..."
+codesign --deep --force --options runtime \
+    --sign "${SIGN_IDENTITY}" \
+    "${BUNDLE}/Contents/Frameworks/Sparkle.framework"
+codesign --force --options runtime \
+    --sign "${SIGN_IDENTITY}" \
+    --entitlements /dev/stdin <<ENTITLEMENTS "${BUNDLE}"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>
+ENTITLEMENTS
+
+echo "  Verifying signature..."
+codesign --verify --deep --strict "${BUNDLE}"
+echo "  Signature OK"
+
 echo "==> Creating DMG..."
 
 # Generate background if missing
@@ -47,8 +73,20 @@ create-dmg \
     "${DMG}" \
     "${BUNDLE}"
 
+# Codesign the DMG
+codesign --force --sign "${SIGN_IDENTITY}" "${DMG}"
+
+# Notarize
+echo "==> Notarizing DMG (this may take a few minutes)..."
+xcrun notarytool submit "${DMG}" \
+    --keychain-profile "${NOTARY_PROFILE}" \
+    --wait
+
+echo "==> Stapling notarization ticket..."
+xcrun stapler staple "${DMG}"
+
 # Sign DMG with Sparkle EdDSA
-echo "==> Signing DMG..."
+echo "==> Signing DMG with Sparkle EdDSA..."
 if [ ! -f "${SIGN_TOOL}" ]; then
     echo "Sparkle sign_update tool not found. Run 'swift package resolve' first."
     exit 1
@@ -64,7 +102,7 @@ if [ -z "${SIGNATURE}" ]; then
     SIGNATURE=$(echo "${SIGN_OUTPUT}" | grep -oE '[A-Za-z0-9+/=]{40,}' | head -1)
 fi
 
-echo "  Signature: ${SIGNATURE}"
+echo "  Sparkle signature: ${SIGNATURE}"
 echo "  Length: ${LENGTH}"
 
 # Generate appcast.xml
