@@ -1,5 +1,34 @@
 import Foundation
 
+struct SeasonalWindow: Codable, Hashable, Sendable {
+    var startMonth: Int  // 1-12
+    var startDay: Int    // 1-31
+    var endMonth: Int    // 1-12
+    var endDay: Int      // 1-31
+
+    /// Description like "May 25 – Jul 7"
+    var description: String {
+        let df = DateFormatter()
+        df.dateFormat = "MMM d"
+        let cal = Calendar.current
+        let startComps = DateComponents(month: startMonth, day: startDay)
+        let endComps = DateComponents(month: endMonth, day: endDay)
+        let startStr = cal.date(from: startComps).map { df.string(from: $0) } ?? "\(startMonth)/\(startDay)"
+        let endStr = cal.date(from: endComps).map { df.string(from: $0) } ?? "\(endMonth)/\(endDay)"
+        return "\(startStr) – \(endStr)"
+    }
+
+    /// Returns the window start date for a given year.
+    func startDate(in year: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: startMonth, day: startDay)) ?? .now
+    }
+
+    /// Returns the window end date for a given year.
+    func endDate(in year: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: endMonth, day: endDay)) ?? .now
+    }
+}
+
 struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
     var name: String
@@ -12,6 +41,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var vendorID: UUID?
     var supply: Supply?
     var tags: [String]
+    var seasonalWindow: SeasonalWindow?
     var snoozedUntil: Date?
     var followUps: [FollowUp]
     var isActive: Bool
@@ -24,7 +54,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          priority: Priority = .medium, frequencyInterval: Int = 1,
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
          notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
-         tags: [String] = [], snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
+         tags: [String] = [], seasonalWindow: SeasonalWindow? = nil,
+         snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
          isActive: Bool = true,
          version: Int = 1, lastModifiedBy: UUID? = nil,
          createdAt: Date = .now, updatedAt: Date = .now) {
@@ -39,6 +70,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.vendorID = vendorID
         self.supply = supply
         self.tags = tags
+        self.seasonalWindow = seasonalWindow
         self.snoozedUntil = snoozedUntil
         self.followUps = followUps
         self.isActive = isActive
@@ -61,6 +93,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         vendorID = try container.decodeIfPresent(UUID.self, forKey: .vendorID)
         supply = try container.decodeIfPresent(Supply.self, forKey: .supply)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        seasonalWindow = try container.decodeIfPresent(SeasonalWindow.self, forKey: .seasonalWindow)
         snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
         followUps = try container.decodeIfPresent([FollowUp].self, forKey: .followUps) ?? []
         isActive = try container.decode(Bool.self, forKey: .isActive)
@@ -81,7 +114,12 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         return snoozedUntil > .now
     }
 
+    var isSeasonal: Bool { seasonalWindow != nil }
+
     var frequencyDescription: String {
+        if let window = seasonalWindow {
+            return window.description
+        }
         if frequencyInterval == 1 {
             return "Every \(frequencyUnit.singular)"
         }

@@ -214,15 +214,31 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 20) {
-                scheduleCard(title: "Frequency", value: item.frequencyDescription, icon: "arrow.clockwise")
+                if let window = item.seasonalWindow {
+                    scheduleCard(title: "Window", value: window.description, icon: "leaf")
 
-                let days = store.daysUntilDue(item)
-                scheduleCard(
-                    title: days < 0 ? "Overdue" : "Next Due",
-                    value: dueDateText(days),
-                    icon: days < 0 ? "exclamationmark.circle" : "calendar",
-                    tint: Color.dueDateColor(days)
-                )
+                    let status = store.scheduling.seasonalStatus(for: item, window: window)
+                    switch status {
+                    case .upcoming(let days):
+                        scheduleCard(title: "Opens In", value: "\(days) days", icon: "calendar", tint: .upkeepAmber)
+                    case .inWindow:
+                        scheduleCard(title: "Status", value: "In window — do it now", icon: "exclamationmark.circle", tint: .upkeepGreen)
+                    case .overdue:
+                        scheduleCard(title: "Status", value: "Window passed", icon: "exclamationmark.circle", tint: .upkeepRed)
+                    case .doneForYear:
+                        scheduleCard(title: "Status", value: "Done for this year", icon: "checkmark.circle", tint: .upkeepGreen)
+                    }
+                } else {
+                    scheduleCard(title: "Frequency", value: item.frequencyDescription, icon: "arrow.clockwise")
+
+                    let days = store.daysUntilDue(item)
+                    scheduleCard(
+                        title: days < 0 ? "Overdue" : "Next Due",
+                        value: dueDateText(days),
+                        icon: days < 0 ? "exclamationmark.circle" : "calendar",
+                        tint: Color.dueDateColor(days)
+                    )
+                }
 
                 if let last = store.lastCompletion(for: item.id) {
                     scheduleCard(

@@ -126,3 +126,137 @@ struct SchedulingServiceTests {
         #expect(Calendar.current.isDate(due, inSameDayAs: expected))
     }
 }
+
+// MARK: - Seasonal Window Scheduling
+
+@Suite("SchedulingService Seasonal")
+struct SeasonalSchedulingTests {
+    private let juneWindow = SeasonalWindow(startMonth: 5, startDay: 25, endMonth: 7, endDay: 7)
+
+    private func makeSeasonalItem(name: String = "Trim Rhodos") -> MaintenanceItem {
+        MaintenanceItem(name: name, seasonalWindow: juneWindow)
+    }
+
+    @Test("seasonal item is not overdue before window opens")
+    func notOverdueBeforeWindow() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        // Only valid if we're before May 25
+        let windowStart = juneWindow.startDate(in: year)
+        guard Date.now < windowStart else { return }
+
+        let item = makeSeasonalItem()
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("seasonal item overdue after window closes without completion")
+    func overdueAfterWindow() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let windowEnd = juneWindow.endDate(in: year)
+        guard Date.now > windowEnd else { return }
+
+        let item = makeSeasonalItem()
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(svc.isOverdue(item))
+    }
+
+    @Test("seasonal item not overdue when completed in window")
+    func notOverdueWhenCompleted() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem()
+        let completionDate = juneWindow.startDate(in: year)
+        let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("seasonal nextDueDate returns this year's window start when not completed")
+    func nextDueDateThisYear() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let windowStart = juneWindow.startDate(in: year)
+        let windowEnd = juneWindow.endDate(in: year)
+        guard Date.now <= windowEnd else { return }
+
+        let item = makeSeasonalItem()
+        let svc = SchedulingService(items: [item], logEntries: [])
+        let due = svc.nextDueDate(for: item)
+        #expect(Calendar.current.isDate(due, inSameDayAs: windowStart))
+    }
+
+    @Test("seasonal nextDueDate returns next year after completion")
+    func nextDueDateNextYear() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem()
+        let completionDate = juneWindow.startDate(in: year)
+        let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        let due = svc.nextDueDate(for: item)
+        let expectedNextYear = juneWindow.startDate(in: year + 1)
+        #expect(Calendar.current.isDate(due, inSameDayAs: expectedNextYear))
+    }
+
+    @Test("seasonal status done for year after completion")
+    func statusDoneForYear() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem()
+        let completionDate = juneWindow.startDate(in: year)
+        let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        let status = svc.seasonalStatus(for: item, window: juneWindow)
+        if case .doneForYear = status {
+            // pass
+        } else {
+            Issue.record("Expected doneForYear, got \(status)")
+        }
+    }
+
+    @Test("seasonal streak counts consecutive years")
+    func streakConsecutiveYears() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem()
+        let logs = (1...3).map { yearsAgo in
+            LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
+                     completedDate: juneWindow.startDate(in: year - yearsAgo))
+        }
+        let svc = SchedulingService(items: [item], logEntries: logs)
+        #expect(svc.currentStreak(for: item.id) == 3)
+    }
+
+    @Test("seasonal streak breaks on missed year")
+    func streakBreaksOnMiss() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem()
+        // Completed 1 and 3 years ago, missed 2 years ago
+        let logs = [
+            LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
+                     completedDate: juneWindow.startDate(in: year - 1)),
+            LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
+                     completedDate: juneWindow.startDate(in: year - 3)),
+        ]
+        let svc = SchedulingService(items: [item], logEntries: logs)
+        #expect(svc.currentStreak(for: item.id) == 1)
+    }
+
+    @Test("SeasonalWindow description format")
+    func windowDescription() {
+        let window = SeasonalWindow(startMonth: 5, startDay: 25, endMonth: 7, endDay: 7)
+        #expect(window.description.contains("May"))
+        #expect(window.description.contains("Jul"))
+    }
+
+    @Test("inactive seasonal item is not overdue")
+    func inactiveNotOverdue() {
+        var item = makeSeasonalItem()
+        item.isActive = false
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(!svc.isOverdue(item))
+    }
+}

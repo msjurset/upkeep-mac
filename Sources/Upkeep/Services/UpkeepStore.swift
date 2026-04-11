@@ -407,12 +407,13 @@ final class UpkeepStore {
     func createItem(name: String, category: MaintenanceCategory = .other, priority: Priority = .medium,
                     frequencyInterval: Int = 1, frequencyUnit: FrequencyUnit = .months,
                     startDate: Date = .now, notes: String = "", vendorID: UUID? = nil,
-                    supply: Supply? = nil, tags: [String] = []) {
+                    supply: Supply? = nil, tags: [String] = [],
+                    seasonalWindow: SeasonalWindow? = nil) {
         let item = MaintenanceItem(
             name: name, category: category, priority: priority,
             frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
             startDate: startDate, notes: notes, vendorID: vendorID,
-            supply: supply, tags: tags
+            supply: supply, tags: tags, seasonalWindow: seasonalWindow
         )
         registerUndo("Add Item") { store in store.deleteItem(id: item.id) }
         Task {

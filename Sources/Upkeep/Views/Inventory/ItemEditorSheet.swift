@@ -21,6 +21,11 @@ struct ItemEditorSheet: View {
     @State private var productURL = ""
     @State private var unitCostString = ""
     @State private var tagsString = ""
+    @State private var useSeasonal = false
+    @State private var windowStartMonth = 6
+    @State private var windowStartDay = 1
+    @State private var windowEndMonth = 7
+    @State private var windowEndDay = 15
 
     private var isEditing: Bool { item != nil }
     private var isValid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -51,20 +56,55 @@ struct ItemEditorSheet: View {
                 }
 
                 Section("Schedule") {
-                    HStack(spacing: 8) {
-                        Text("Every")
-                        Stepper(value: $frequencyInterval, in: 1...365) {
-                            Text("\(frequencyInterval)")
-                                .monospacedDigit()
-                                .frame(minWidth: 30)
-                        }
-                        Picker("", selection: $frequencyUnit) {
-                            ForEach(FrequencyUnit.allCases) { unit in
-                                Text(frequencyInterval == 1 ? unit.singular : unit.label).tag(unit)
+                    Picker("Type", selection: $useSeasonal) {
+                        Text("Recurring").tag(false)
+                        Text("Seasonal window").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+
+                    if useSeasonal {
+                        HStack {
+                            Text("Window opens")
+                            Spacer()
+                            Picker("", selection: $windowStartMonth) {
+                                ForEach(1...12, id: \.self) { m in
+                                    Text(monthName(m)).tag(m)
+                                }
                             }
+                            .labelsHidden()
+                            .frame(width: 100)
+                            Stepper("\(windowStartDay)", value: $windowStartDay, in: 1...31)
+                                .frame(width: 80)
                         }
-                        .labelsHidden()
-                        .frame(width: 100)
+                        HStack {
+                            Text("Window closes")
+                            Spacer()
+                            Picker("", selection: $windowEndMonth) {
+                                ForEach(1...12, id: \.self) { m in
+                                    Text(monthName(m)).tag(m)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 100)
+                            Stepper("\(windowEndDay)", value: $windowEndDay, in: 1...31)
+                                .frame(width: 80)
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            Text("Every")
+                            Stepper(value: $frequencyInterval, in: 1...365) {
+                                Text("\(frequencyInterval)")
+                                    .monospacedDigit()
+                                    .frame(minWidth: 30)
+                            }
+                            Picker("", selection: $frequencyUnit) {
+                                ForEach(FrequencyUnit.allCases) { unit in
+                                    Text(frequencyInterval == 1 ? unit.singular : unit.label).tag(unit)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 100)
+                        }
                     }
 
                     DatePicker("Start tracking from", selection: $startDate, displayedComponents: .date)
@@ -123,6 +163,13 @@ struct ItemEditorSheet: View {
                 selectedVendorID = item.vendorID
                 tagsString = item.tags.joined(separator: ", ")
                 isActive = item.isActive
+                if let window = item.seasonalWindow {
+                    useSeasonal = true
+                    windowStartMonth = window.startMonth
+                    windowStartDay = window.startDay
+                    windowEndMonth = window.endMonth
+                    windowEndDay = window.endDay
+                }
                 if let supply = item.supply {
                     trackSupply = true
                     stockOnHand = supply.stockOnHand
@@ -154,6 +201,19 @@ struct ItemEditorSheet: View {
             .filter { !$0.isEmpty }
     }
 
+    private var currentSeasonalWindow: SeasonalWindow? {
+        guard useSeasonal else { return nil }
+        return SeasonalWindow(
+            startMonth: windowStartMonth, startDay: windowStartDay,
+            endMonth: windowEndMonth, endDay: windowEndDay
+        )
+    }
+
+    private func monthName(_ month: Int) -> String {
+        let df = DateFormatter()
+        return df.monthSymbols[month - 1]
+    }
+
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         if var existing = item {
@@ -163,6 +223,7 @@ struct ItemEditorSheet: View {
             existing.frequencyInterval = frequencyInterval
             existing.frequencyUnit = frequencyUnit
             existing.startDate = startDate
+            existing.seasonalWindow = currentSeasonalWindow
             existing.notes = notes
             existing.vendorID = selectedVendorID
             existing.supply = currentSupply
@@ -174,7 +235,8 @@ struct ItemEditorSheet: View {
                 name: trimmedName, category: category, priority: priority,
                 frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
                 startDate: startDate, notes: notes, vendorID: selectedVendorID,
-                supply: currentSupply, tags: parsedTags
+                supply: currentSupply, tags: parsedTags,
+                seasonalWindow: currentSeasonalWindow
             )
         }
     }
