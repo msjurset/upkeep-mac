@@ -467,6 +467,23 @@ final class UpkeepStore {
         }
     }
 
+    func skipYear(id: UUID) {
+        guard var item = items.first(where: { $0.id == id }) else { return }
+        let prev = item
+        let year = Calendar.current.component(.year, from: .now)
+        item.skippedYear = year
+        item.touch(by: currentMemberID)
+        registerUndo("Skip Year") { store in store.updateItem(prev, actionName: "Undo Skip Year") }
+        Task {
+            do {
+                try await persistence.saveItem(item)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     func snoozeItem(id: UUID, days: Int) {
         guard var item = items.first(where: { $0.id == id }) else { return }
         let prev = item

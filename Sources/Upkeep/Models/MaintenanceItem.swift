@@ -42,6 +42,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var supply: Supply?
     var tags: [String]
     var seasonalWindow: SeasonalWindow?
+    var skippedYear: Int?
     var snoozedUntil: Date?
     var followUps: [FollowUp]
     var isActive: Bool
@@ -55,7 +56,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
          notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
          tags: [String] = [], seasonalWindow: SeasonalWindow? = nil,
-         snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
+         skippedYear: Int? = nil, snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
          isActive: Bool = true,
          version: Int = 1, lastModifiedBy: UUID? = nil,
          createdAt: Date = .now, updatedAt: Date = .now) {
@@ -71,6 +72,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.supply = supply
         self.tags = tags
         self.seasonalWindow = seasonalWindow
+        self.skippedYear = skippedYear
         self.snoozedUntil = snoozedUntil
         self.followUps = followUps
         self.isActive = isActive
@@ -94,6 +96,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         supply = try container.decodeIfPresent(Supply.self, forKey: .supply)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         seasonalWindow = try container.decodeIfPresent(SeasonalWindow.self, forKey: .seasonalWindow)
+        skippedYear = try container.decodeIfPresent(Int.self, forKey: .skippedYear)
         snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
         followUps = try container.decodeIfPresent([FollowUp].self, forKey: .followUps) ?? []
         isActive = try container.decode(Bool.self, forKey: .isActive)

@@ -95,6 +95,15 @@ struct ItemDetailView: View {
                     .padding(12)
                 }
 
+                if item.isSeasonal {
+                    Button {
+                        store.skipYear(id: item.id)
+                    } label: {
+                        Label("Skip This Year", systemImage: "forward")
+                    }
+                    .help("Skip this seasonal task for the current year")
+                }
+
                 Button {
                     showEditSheet = true
                 } label: {
@@ -227,6 +236,8 @@ struct ItemDetailView: View {
                         scheduleCard(title: "Status", value: "Window passed", icon: "exclamationmark.circle", tint: .upkeepRed)
                     case .doneForYear:
                         scheduleCard(title: "Status", value: "Done for this year", icon: "checkmark.circle", tint: .upkeepGreen)
+                    case .skippedForYear:
+                        scheduleCard(title: "Status", value: "Skipped this year", icon: "forward.circle", tint: .secondary)
                     }
                 } else {
                     scheduleCard(title: "Frequency", value: item.frequencyDescription, icon: "arrow.clockwise")

@@ -58,6 +58,11 @@ struct ItemListView: View {
                             Button("Snooze 7 Days") {
                                 store.snoozeItem(id: item.id, days: 7)
                             }
+                            if item.isSeasonal {
+                                Button("Skip This Year") {
+                                    store.skipYear(id: item.id)
+                                }
+                            }
                             Button(item.isActive ? "Deactivate" : "Activate") {
                                 var updated = item
                                 updated.isActive.toggle()

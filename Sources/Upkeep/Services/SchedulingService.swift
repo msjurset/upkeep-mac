@@ -83,6 +83,11 @@ struct SchedulingService: Sendable {
         let windowStart = window.startDate(in: year)
         let windowEnd = window.endDate(in: year)
 
+        // Skipped this year
+        if item.skippedYear == year {
+            return .skippedForYear
+        }
+
         // Check if completed this year's window
         if let last = lastCompletion(for: item.id) {
             let lastYear = cal.component(.year, from: last.completedDate)
@@ -123,6 +128,11 @@ struct SchedulingService: Sendable {
         let windowStart = window.startDate(in: year)
         let windowEnd = window.endDate(in: year)
 
+        // Skipped this year — next due is next year
+        if item.skippedYear == year {
+            return window.startDate(in: year + 1)
+        }
+
         // If completed this year within the window, next due is next year's window start
         if let last = lastCompletion(for: item.id) {
             let lastYear = cal.component(.year, from: last.completedDate)
@@ -147,6 +157,9 @@ struct SchedulingService: Sendable {
         let year = cal.component(.year, from: now)
         let windowStart = window.startDate(in: year)
         let windowEnd = window.endDate(in: year)
+
+        // Skipped this year
+        if item.skippedYear == year { return false }
 
         // If completed this year in/after window start, not overdue
         if let last = lastCompletion(for: item.id) {
@@ -197,4 +210,5 @@ enum SeasonalItemStatus {
     case inWindow
     case overdue
     case doneForYear
+    case skippedForYear
 }
