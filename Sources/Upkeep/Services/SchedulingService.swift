@@ -79,29 +79,25 @@ struct SchedulingService: Sendable {
     func seasonalStatus(for item: MaintenanceItem, window: SeasonalWindow) -> SeasonalItemStatus {
         let cal = Calendar.current
         let now = Date.now
-        let year = cal.component(.year, from: now)
-        let windowStart = window.startDate(in: year)
-        let windowEnd = window.endDate(in: year)
+        let r = resolveWindow(window)
 
-        // Skipped this year
-        if item.skippedYear == year {
+        if item.skippedYear == r.startYear {
             return .skippedForYear
         }
 
-        // Check if completed this year's window
-        if let last = lastCompletion(for: item.id) {
-            let lastYear = cal.component(.year, from: last.completedDate)
-            if lastYear == year && last.completedDate >= windowStart {
-                return .doneForYear
-            }
+        if let last = lastCompletion(for: item.id),
+           last.completedDate >= r.start && last.completedDate <= r.end {
+            return .doneForYear
         }
 
-        if now < windowStart {
-            let days = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: windowStart)).day ?? 0
+        if now < r.start {
+            // We're before the next window — show countdown to it
+            let days = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: r.nextStart)).day ?? 0
             return .upcoming(daysUntil: days)
-        } else if now <= windowEnd {
+        } else if now >= r.start && now <= r.end {
             return .inWindow
         } else {
+            // Past window end without completion
             return .overdue
         }
     }
@@ -121,73 +117,88 @@ struct SchedulingService: Sendable {
 
     // MARK: - Private: Seasonal
 
-    private func nextSeasonalDueDate(for item: MaintenanceItem, window: SeasonalWindow) -> Date {
+    /// Finds the relevant window period for now.
+    /// "Window year" = the year the window starts. For Nov–Jan, the 2025 window is Nov 15 2025 – Jan 15 2026.
+    /// Returns (startYear, windowStart, windowEnd) for the current or most recent window,
+    /// and (nextStartYear, nextWindowStart) for the upcoming one.
+    private func resolveWindow(_ window: SeasonalWindow) -> (startYear: Int, start: Date, end: Date, nextStart: Date) {
         let cal = Calendar.current
         let now = Date.now
         let year = cal.component(.year, from: now)
-        let windowStart = window.startDate(in: year)
-        let windowEnd = window.endDate(in: year)
 
-        // Skipped this year — next due is next year
-        if item.skippedYear == year {
-            return window.startDate(in: year + 1)
+        // Check if we're inside the current year's window
+        let thisStart = window.startDate(in: year)
+        let thisEnd = window.endDate(in: year)
+        if now >= thisStart && now <= thisEnd {
+            return (year, thisStart, thisEnd, window.startDate(in: year + 1))
         }
 
-        // If completed this year within the window, next due is next year's window start
-        if let last = lastCompletion(for: item.id) {
-            let lastYear = cal.component(.year, from: last.completedDate)
-            if lastYear == year && last.completedDate >= windowStart {
-                return window.startDate(in: year + 1)
+        // For year-spanning windows, check if we're in the tail of last year's window
+        if window.spansYearBoundary {
+            let prevStart = window.startDate(in: year - 1)
+            let prevEnd = window.endDate(in: year - 1)  // This is in `year` since it spans
+            if now >= prevStart && now <= prevEnd {
+                return (year - 1, prevStart, prevEnd, thisStart)
             }
         }
 
-        // If before or in this year's window, due date is window start
-        if now <= windowEnd {
-            return windowStart
+        // We're between windows. Figure out if this year's window is upcoming or past.
+        if now < thisStart {
+            // This year's window is upcoming; the "last" window was the previous year's
+            let prevStart = window.startDate(in: year - 1)
+            let prevEnd = window.endDate(in: year - 1)
+            return (year - 1, prevStart, prevEnd, thisStart)
+        } else {
+            // Past this year's window
+            return (year, thisStart, thisEnd, window.startDate(in: year + 1))
+        }
+    }
+
+    private func nextSeasonalDueDate(for item: MaintenanceItem, window: SeasonalWindow) -> Date {
+        let r = resolveWindow(window)
+
+        // Skipped this window's year
+        if item.skippedYear == r.startYear { return r.nextStart }
+
+        // Completed during this window
+        if let last = lastCompletion(for: item.id),
+           last.completedDate >= r.start && last.completedDate <= r.end {
+            return r.nextStart
         }
 
-        // Past this year's window without completion — still due (overdue)
-        // Return window end so daysUntilDue goes negative
-        return windowEnd
+        let now = Date.now
+        // Before or in the window — due at window start
+        if now <= r.end { return r.start }
+
+        // Past window without completion — overdue, return end so daysUntilDue goes negative
+        return r.end
     }
 
     private func isSeasonalOverdue(_ item: MaintenanceItem, window: SeasonalWindow) -> Bool {
-        let cal = Calendar.current
+        let r = resolveWindow(window)
         let now = Date.now
-        let year = cal.component(.year, from: now)
-        let windowStart = window.startDate(in: year)
-        let windowEnd = window.endDate(in: year)
 
-        // Skipped this year
-        if item.skippedYear == year { return false }
+        if item.skippedYear == r.startYear { return false }
 
-        // If completed this year in/after window start, not overdue
-        if let last = lastCompletion(for: item.id) {
-            let lastYear = cal.component(.year, from: last.completedDate)
-            if lastYear == year && last.completedDate >= windowStart {
-                return false
-            }
+        if let last = lastCompletion(for: item.id),
+           last.completedDate >= r.start && last.completedDate <= r.end {
+            return false
         }
 
-        // Overdue if past the window end
-        return now > windowEnd
+        return now > r.end
     }
 
     private func seasonalStreak(for item: MaintenanceItem, window: SeasonalWindow) -> Int {
-        let cal = Calendar.current
-        let currentYear = cal.component(.year, from: .now)
+        let r = resolveWindow(window)
         let entries = logEntries
             .filter { $0.itemID == item.id }
             .sorted { $0.completedDate > $1.completedDate }
 
         var streak = 0
-        var checkYear = currentYear
+        var checkYear = r.startYear
 
-        // Don't count current year if window hasn't ended yet
-        let windowEnd = window.endDate(in: currentYear)
-        if Date.now <= windowEnd {
-            checkYear -= 1
-        }
+        // Don't count current window if it hasn't ended yet
+        if Date.now <= r.end { checkYear -= 1 }
 
         for year in stride(from: checkYear, through: checkYear - 10, by: -1) {
             let yearStart = window.startDate(in: year)

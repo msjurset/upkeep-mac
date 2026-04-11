@@ -18,14 +18,19 @@ struct SeasonalWindow: Codable, Hashable, Sendable {
         return "\(startStr) – \(endStr)"
     }
 
+    /// Whether the window spans a year boundary (e.g. Nov – Jan).
+    var spansYearBoundary: Bool { endMonth < startMonth }
+
     /// Returns the window start date for a given year.
     func startDate(in year: Int) -> Date {
         Calendar.current.date(from: DateComponents(year: year, month: startMonth, day: startDay)) ?? .now
     }
 
     /// Returns the window end date for a given year.
+    /// If the window spans a year boundary (e.g. Nov–Jan), the end date is in year+1.
     func endDate(in year: Int) -> Date {
-        Calendar.current.date(from: DateComponents(year: year, month: endMonth, day: endDay)) ?? .now
+        let endYear = spansYearBoundary ? year + 1 : year
+        return Calendar.current.date(from: DateComponents(year: endYear, month: endMonth, day: endDay)) ?? .now
     }
 }
 

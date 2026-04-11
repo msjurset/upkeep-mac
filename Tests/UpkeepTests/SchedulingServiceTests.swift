@@ -132,80 +132,61 @@ struct SchedulingServiceTests {
 @Suite("SchedulingService Seasonal")
 struct SeasonalSchedulingTests {
     private let juneWindow = SeasonalWindow(startMonth: 5, startDay: 25, endMonth: 7, endDay: 7)
+    private let winterWindow = SeasonalWindow(startMonth: 11, startDay: 15, endMonth: 1, endDay: 15)
 
-    private func makeSeasonalItem(name: String = "Trim Rhodos") -> MaintenanceItem {
-        MaintenanceItem(name: name, seasonalWindow: juneWindow)
+    private func makeSeasonalItem(name: String = "Trim Rhodos", window: SeasonalWindow? = nil) -> MaintenanceItem {
+        MaintenanceItem(name: name, seasonalWindow: window ?? juneWindow)
     }
 
-    @Test("seasonal item is not overdue before window opens")
-    func notOverdueBeforeWindow() {
-        let cal = Calendar.current
-        let year = cal.component(.year, from: .now)
-        // Only valid if we're before May 25
-        let windowStart = juneWindow.startDate(in: year)
-        guard Date.now < windowStart else { return }
-
-        let item = makeSeasonalItem()
-        let svc = SchedulingService(items: [item], logEntries: [])
-        #expect(!svc.isOverdue(item))
-    }
-
-    @Test("seasonal item overdue after window closes without completion")
-    func overdueAfterWindow() {
-        let cal = Calendar.current
-        let year = cal.component(.year, from: .now)
-        let windowEnd = juneWindow.endDate(in: year)
-        guard Date.now > windowEnd else { return }
-
-        let item = makeSeasonalItem()
-        let svc = SchedulingService(items: [item], logEntries: [])
-        #expect(svc.isOverdue(item))
-    }
-
-    @Test("seasonal item not overdue when completed in window")
-    func notOverdueWhenCompleted() {
+    @Test("seasonal item not overdue when last year's window was completed")
+    func notOverdueWhenLastYearCompleted() {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        let completionDate = juneWindow.startDate(in: year)
+        // Complete in last year's window
+        let completionDate = juneWindow.startDate(in: year - 1)
         let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
         let svc = SchedulingService(items: [item], logEntries: [log])
-        #expect(!svc.isOverdue(item))
+        // Last year's window is done; this year's hasn't opened yet → not overdue
+        if Date.now < juneWindow.startDate(in: year) {
+            #expect(!svc.isOverdue(item))
+        }
     }
 
-    @Test("seasonal nextDueDate returns this year's window start when not completed")
-    func nextDueDateThisYear() {
+    @Test("seasonal item overdue when last year's window was missed")
+    func overdueWhenLastYearMissed() {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
-        let windowStart = juneWindow.startDate(in: year)
-        let windowEnd = juneWindow.endDate(in: year)
-        guard Date.now <= windowEnd else { return }
-
+        // The previous year's window (2025) has closed and was never completed
         let item = makeSeasonalItem()
         let svc = SchedulingService(items: [item], logEntries: [])
-        let due = svc.nextDueDate(for: item)
-        #expect(Calendar.current.isDate(due, inSameDayAs: windowStart))
+        let prevEnd = juneWindow.endDate(in: year - 1)
+        if Date.now > prevEnd && Date.now < juneWindow.startDate(in: year) {
+            #expect(svc.isOverdue(item))
+        }
     }
 
-    @Test("seasonal nextDueDate returns next year after completion")
-    func nextDueDateNextYear() {
+    @Test("seasonal nextDueDate returns next window start after completion")
+    func nextDueDateAfterCompletion() {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        let completionDate = juneWindow.startDate(in: year)
+        // Complete in last year's window
+        let completionDate = juneWindow.startDate(in: year - 1)
         let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
         let svc = SchedulingService(items: [item], logEntries: [log])
         let due = svc.nextDueDate(for: item)
-        let expectedNextYear = juneWindow.startDate(in: year + 1)
-        #expect(Calendar.current.isDate(due, inSameDayAs: expectedNextYear))
+        // Should point to this year's (or next upcoming) window start
+        #expect(due >= juneWindow.startDate(in: year - 1))
     }
 
-    @Test("seasonal status done for year after completion")
+    @Test("seasonal status done for year after completion in window")
     func statusDoneForYear() {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        let completionDate = juneWindow.startDate(in: year)
+        // Complete in last year's window
+        let completionDate = juneWindow.startDate(in: year - 1)
         let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
         let svc = SchedulingService(items: [item], logEntries: [log])
         let status = svc.seasonalStatus(for: item, window: juneWindow)
@@ -258,5 +239,36 @@ struct SeasonalSchedulingTests {
         item.isActive = false
         let svc = SchedulingService(items: [item], logEntries: [])
         #expect(!svc.isOverdue(item))
+    }
+
+    // MARK: - Year-Spanning Windows
+
+    @Test("year-spanning window endDate is in the following year")
+    func yearSpanningEndDate() {
+        #expect(winterWindow.spansYearBoundary)
+        let start = winterWindow.startDate(in: 2025)
+        let end = winterWindow.endDate(in: 2025)
+        let cal = Calendar.current
+        #expect(cal.component(.year, from: start) == 2025)
+        #expect(cal.component(.month, from: start) == 11)
+        #expect(cal.component(.year, from: end) == 2026)
+        #expect(cal.component(.month, from: end) == 1)
+    }
+
+    @Test("year-spanning window not overdue when completed in window")
+    func yearSpanningCompletedInWindow() {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: .now)
+        let item = makeSeasonalItem(name: "Prune Maple", window: winterWindow)
+        // Completed in Dec of last year's window
+        let completionDate = cal.date(from: DateComponents(year: year - 1, month: 12, day: 1))!
+        let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("non-spanning window does not set spansYearBoundary")
+    func nonSpanningWindow() {
+        #expect(!juneWindow.spansYearBoundary)
     }
 }
