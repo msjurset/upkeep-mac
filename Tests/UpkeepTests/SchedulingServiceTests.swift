@@ -134,8 +134,10 @@ struct SeasonalSchedulingTests {
     private let juneWindow = SeasonalWindow(startMonth: 5, startDay: 25, endMonth: 7, endDay: 7)
     private let winterWindow = SeasonalWindow(startMonth: 11, startDay: 15, endMonth: 1, endDay: 15)
 
-    private func makeSeasonalItem(name: String = "Trim Rhodos", window: SeasonalWindow? = nil) -> MaintenanceItem {
-        MaintenanceItem(name: name, seasonalWindow: window ?? juneWindow)
+    private func makeSeasonalItem(name: String = "Trim Rhodos", window: SeasonalWindow? = nil, startDate: Date? = nil) -> MaintenanceItem {
+        // Default start date 2 years ago so the item "existed" during previous windows
+        let start = startDate ?? Calendar.current.date(byAdding: .year, value: -2, to: .now)!
+        return MaintenanceItem(name: name, startDate: start, seasonalWindow: window ?? juneWindow)
     }
 
     @Test("seasonal item not overdue when last year's window was completed")
@@ -270,5 +272,14 @@ struct SeasonalSchedulingTests {
     @Test("non-spanning window does not set spansYearBoundary")
     func nonSpanningWindow() {
         #expect(!juneWindow.spansYearBoundary)
+    }
+
+    @Test("new item created before upcoming window is not overdue")
+    func newItemNotOverdueBeforeWindow() {
+        // Item created today, window opens in the future this year
+        let item = makeSeasonalItem(startDate: .now)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        // The item didn't exist during last year's window, so it shouldn't be overdue
+        #expect(!svc.isOverdue(item))
     }
 }

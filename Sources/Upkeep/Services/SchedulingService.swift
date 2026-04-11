@@ -81,6 +81,12 @@ struct SchedulingService: Sendable {
         let now = Date.now
         let r = resolveWindow(window)
 
+        // Item didn't exist during the resolved window — show upcoming
+        if item.startDate > r.end {
+            let days = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: r.nextStart)).day ?? 0
+            return .upcoming(daysUntil: days)
+        }
+
         if item.skippedYear == r.startYear {
             return .skippedForYear
         }
@@ -157,6 +163,9 @@ struct SchedulingService: Sendable {
     private func nextSeasonalDueDate(for item: MaintenanceItem, window: SeasonalWindow) -> Date {
         let r = resolveWindow(window)
 
+        // Item didn't exist during this window — next due is the upcoming window
+        if item.startDate > r.end { return r.nextStart }
+
         // Skipped this window's year
         if item.skippedYear == r.startYear { return r.nextStart }
 
@@ -177,6 +186,9 @@ struct SchedulingService: Sendable {
     private func isSeasonalOverdue(_ item: MaintenanceItem, window: SeasonalWindow) -> Bool {
         let r = resolveWindow(window)
         let now = Date.now
+
+        // Item didn't exist during this window — can't be overdue for it
+        if item.startDate > r.end { return false }
 
         if item.skippedYear == r.startYear { return false }
 
