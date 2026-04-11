@@ -567,11 +567,15 @@ struct ItemDetailView: View {
             Text("Notes")
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            Text(item.notes)
+            Text(markdownNotes)
                 .font(.body)
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
         }
+    }
+
+    private var markdownNotes: AttributedString {
+        (try? AttributedString(markdown: item.notes, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(item.notes)
     }
 
     // MARK: - History
