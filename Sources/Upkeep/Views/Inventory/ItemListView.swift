@@ -58,6 +58,11 @@ struct ItemListView: View {
                             Button("Snooze 7 Days") {
                                 store.snoozeItem(id: item.id, days: 7)
                             }
+                            Button(item.isActive ? "Deactivate" : "Activate") {
+                                var updated = item
+                                updated.isActive.toggle()
+                                store.updateItem(updated, actionName: item.isActive ? "Deactivate" : "Activate")
+                            }
                             Divider()
                             Button("Delete", role: .destructive) {
                                 store.deleteItem(id: item.id)
