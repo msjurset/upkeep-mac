@@ -108,9 +108,7 @@ struct LogEntryDetailView: View {
                         Text("Notes")
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Text(entryMarkdownNotes)
-                            .font(.body)
-                            .textSelection(.enabled)
+                        MarkdownNotesView(text: entry.notes)
                     }
                     .padding(20)
                 }
@@ -140,10 +138,6 @@ struct LogEntryDetailView: View {
                 store.selectedLogEntryID = nil
             }
         }
-    }
-
-    private var entryMarkdownNotes: AttributedString {
-        (try? AttributedString(markdown: entry.notes, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(entry.notes)
     }
 
     private func detailRow(icon: String, title: String, value: String) -> some View {

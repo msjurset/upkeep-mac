@@ -105,9 +105,7 @@ struct VendorDetailView: View {
                         Text("Notes")
                             .font(.headline)
                             .foregroundStyle(.secondary)
-                        Text(vendorMarkdownNotes)
-                            .font(.body)
-                            .textSelection(.enabled)
+                        MarkdownNotesView(text: vendor.notes)
                     }
                     .padding(20)
                 }
@@ -180,10 +178,6 @@ struct VendorDetailView: View {
                 Text("This will permanently remove this vendor.")
             }
         }
-    }
-
-    private var vendorMarkdownNotes: AttributedString {
-        (try? AttributedString(markdown: vendor.notes, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(vendor.notes)
     }
 
     private func contactRow(icon: String, label: String, value: String) -> some View {
