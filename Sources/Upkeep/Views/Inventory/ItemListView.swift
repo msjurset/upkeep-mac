@@ -8,7 +8,6 @@ struct ItemListView: View {
 
     @FocusState private var searchFocused: Bool
     @State private var bulkSelection: Set<UUID> = []
-    @State private var isBulkMode = false
 
     var body: some View {
         @Bindable var store = store
@@ -38,16 +37,6 @@ struct ItemListView: View {
             Divider()
 
             HStack {
-                Button {
-                    isBulkMode.toggle()
-                    if !isBulkMode { bulkSelection.removeAll() }
-                } label: {
-                    Label(isBulkMode ? "Done" : "Select", systemImage: isBulkMode ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
                 Spacer()
                 addButton { showNewItemSheet = true }
             }
@@ -55,41 +44,37 @@ struct ItemListView: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
 
-            if isBulkMode {
-                List(selection: $bulkSelection) {
-                    ForEach(items) { item in
-                        ItemRow(item: item)
-                            .tag(item.id)
-                    }
-                }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
-            } else {
-                List(selection: $store.selectedItemID) {
-                    ForEach(items) { item in
-                        ItemRow(item: item)
-                            .tag(item.id)
-                            .contextMenu {
-                                Button("Log Completion") {
-                                    store.logCompletion(
-                                        itemID: item.id, title: item.name,
-                                        category: item.category, performedBy: "Self"
-                                    )
-                                }
-                                Button("Snooze 7 Days") {
-                                    store.snoozeItem(id: item.id, days: 7)
-                                }
-                                Divider()
-                                Button("Delete", role: .destructive) {
-                                    store.deleteItem(id: item.id)
-                                }
+            List(selection: $bulkSelection) {
+                ForEach(items) { item in
+                    ItemRow(item: item)
+                        .tag(item.id)
+                        .contextMenu {
+                            Button("Log Completion") {
+                                store.logCompletion(
+                                    itemID: item.id, title: item.name,
+                                    category: item.category, performedBy: "Self"
+                                )
                             }
-                    }
+                            Button("Snooze 7 Days") {
+                                store.snoozeItem(id: item.id, days: 7)
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                store.deleteItem(id: item.id)
+                            }
+                        }
                 }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
+            }
+            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .onChange(of: bulkSelection) {
+                // Single selection → navigate to detail
+                if bulkSelection.count == 1 {
+                    store.selectedItemID = bulkSelection.first
+                }
             }
 
-            // Bulk action bar
-            if isBulkMode && !bulkSelection.isEmpty {
+            // Bulk action bar — appears when 2+ items selected
+            if bulkSelection.count > 1 {
                 Divider()
                 HStack(spacing: 12) {
                     Text("\(bulkSelection.count) selected")
