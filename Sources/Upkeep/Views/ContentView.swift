@@ -142,10 +142,10 @@ struct ContentListView: View {
     var body: some View {
         switch store.navigation {
         case .inventoryUpcoming:
-            ItemListView(items: store.upcomingItems, title: "Upcoming", showNewItemSheet: $showNewItemSheet)
+            ItemListView(items: store.filteredUpcomingItems, title: "Upcoming", showNewItemSheet: $showNewItemSheet)
                 .accessibilityIdentifier("list.items")
         case .inventoryOverdue:
-            ItemListView(items: store.overdueItems, title: "Overdue", showNewItemSheet: $showNewItemSheet)
+            ItemListView(items: store.filteredOverdueItems, title: "Overdue", showNewItemSheet: $showNewItemSheet)
                 .accessibilityIdentifier("list.items")
         case .inventoryAll:
             ItemListView(items: store.filteredActiveItems, title: "All Items", showNewItemSheet: $showNewItemSheet)

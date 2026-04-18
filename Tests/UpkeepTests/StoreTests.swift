@@ -389,3 +389,63 @@ struct QueryTests {
         #expect(store.onTrackCount == 1)
     }
 }
+
+// MARK: - Sorting
+
+@Suite("UpkeepStore Sorting")
+struct SortingTests {
+    @Test("nameAZ sorts alphabetically")
+    @MainActor func sortNameAZ() {
+        let store = makeStore()
+        store.items = [makeItem(name: "Charlie"), makeItem(name: "Alpha"), makeItem(name: "Bravo")]
+        store.sortMode = .nameAZ
+        let sorted = store.applyingSort(store.items)
+        #expect(sorted.map(\.name) == ["Alpha", "Bravo", "Charlie"])
+    }
+
+    @Test("nameZA reverses alphabetical")
+    @MainActor func sortNameZA() {
+        let store = makeStore()
+        store.items = [makeItem(name: "Alpha"), makeItem(name: "Charlie"), makeItem(name: "Bravo")]
+        store.sortMode = .nameZA
+        let sorted = store.applyingSort(store.items)
+        #expect(sorted.map(\.name) == ["Charlie", "Bravo", "Alpha"])
+    }
+
+    @Test("priority puts critical first")
+    @MainActor func sortPriority() {
+        let store = makeStore()
+        var high = makeItem(name: "High"); high.priority = .high
+        var low = makeItem(name: "Low"); low.priority = .low
+        var critical = makeItem(name: "Critical"); critical.priority = .critical
+        store.items = [low, high, critical]
+        store.sortMode = .priority
+        let sorted = store.applyingSort(store.items)
+        #expect(sorted.map(\.name) == ["Critical", "High", "Low"])
+    }
+
+    @Test("dueSoonest sorts by next due ascending")
+    @MainActor func sortDueSoonest() {
+        let store = makeStore()
+        let soon = makeItem(name: "Soon", frequencyInterval: 1, frequencyUnit: .months, startDate: .now)
+        let later = makeItem(name: "Later", frequencyInterval: 1, frequencyUnit: .years, startDate: .now)
+        store.items = [later, soon]
+        store.sortMode = .dueSoonest
+        let sorted = store.applyingSort(store.items)
+        #expect(sorted.map(\.name) == ["Soon", "Later"])
+    }
+
+    @Test("cycleSortMode advances through all cases")
+    @MainActor func cycle() {
+        let store = makeStore()
+        store.sortMode = .dueSoonest
+        store.cycleSortMode()
+        #expect(store.sortMode == .priority)
+        store.cycleSortMode()
+        #expect(store.sortMode == .nameAZ)
+        store.cycleSortMode()
+        #expect(store.sortMode == .nameZA)
+        store.cycleSortMode()
+        #expect(store.sortMode == .dueSoonest)
+    }
+}

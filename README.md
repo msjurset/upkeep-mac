@@ -9,7 +9,8 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 ## Features
 
 **Inventory**
-- Track recurring maintenance items with customizable frequency (days, weeks, months, years)
+- Three schedule types: **Recurring** (every N days/weeks/months/years), **Seasonal** (annual windows like "May 25 – Jul 7"), and **To-do** (one-time fixes with a due-by date)
+- To-do items auto-deactivate when logged as complete (configurable in Settings)
 - Priority levels, category tagging, and vendor assignment
 - Supply tracking with stock levels, reorder alerts, and product links
 - Follow-up tasks per item with due dates
@@ -71,7 +72,7 @@ make deploy
 ```sh
 swift build              # debug build
 make build               # release build
-swift test               # unit tests (95 tests)
+swift test               # unit tests (120 tests)
 make uitest              # UI tests (15 tests, requires xcodegen)
 make deploy              # build, bundle, install to /Applications
 ```

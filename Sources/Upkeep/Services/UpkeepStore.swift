@@ -3,10 +3,34 @@ import SwiftUI
 @Observable
 @MainActor
 final class UpkeepStore {
+    enum SortMode: String, CaseIterable, Sendable {
+        case dueSoonest = "Due"
+        case priority = "Priority"
+        case nameAZ = "Name A-Z"
+        case nameZA = "Name Z-A"
+
+        var next: SortMode {
+            let all = SortMode.allCases
+            let idx = all.firstIndex(of: self)!
+            return all[(idx + 1) % all.count]
+        }
+
+        var icon: String {
+            switch self {
+            case .dueSoonest: "calendar"
+            case .priority: "exclamationmark.circle"
+            case .nameAZ: "arrow.down"
+            case .nameZA: "arrow.up"
+            }
+        }
+    }
+
     var items: [MaintenanceItem] = []
     var logEntries: [LogEntry] = []
     var vendors: [Vendor] = []
     var members: [HouseholdMember] = []
+    var config: AppConfig = AppConfig()
+    var sortMode: SortMode = .dueSoonest
 
     var navigation: NavigationItem? = .dashboard {
         didSet {
@@ -268,8 +292,20 @@ final class UpkeepStore {
     }
 
     var filteredActiveItems: [MaintenanceItem] {
+        applyingSort(applyingSearchFilter(activeItems))
+    }
+
+    var filteredOverdueItems: [MaintenanceItem] {
+        applyingSort(applyingSearchFilter(overdueItems))
+    }
+
+    var filteredUpcomingItems: [MaintenanceItem] {
+        applyingSort(applyingSearchFilter(upcomingItems))
+    }
+
+    func applyingSearchFilter(_ items: [MaintenanceItem]) -> [MaintenanceItem] {
         let query = searchQuery.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return activeItems }
+        guard !query.isEmpty else { return items }
 
         let tagTokens = query.matches(of: /tag:(\S+)/).map { String($0.output.1).lowercased() }
         let textQuery = query
@@ -277,11 +313,31 @@ final class UpkeepStore {
             .trimmingCharacters(in: .whitespaces)
             .lowercased()
 
-        return activeItems.filter { item in
+        return items.filter { item in
             let matchesTags = tagTokens.allSatisfy { tag in item.tags.contains(tag) }
             let matchesText = textQuery.isEmpty || item.name.lowercased().contains(textQuery) || item.notes.lowercased().contains(textQuery)
             return matchesTags && matchesText
         }
+    }
+
+    func applyingSort(_ items: [MaintenanceItem]) -> [MaintenanceItem] {
+        switch sortMode {
+        case .dueSoonest:
+            return items.sorted { nextDueDate(for: $0) < nextDueDate(for: $1) }
+        case .priority:
+            return items.sorted {
+                if $0.priority != $1.priority { return $0.priority > $1.priority }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .nameAZ:
+            return items.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .nameZA:
+            return items.sorted { $0.name.localizedStandardCompare($1.name) == .orderedDescending }
+        }
+    }
+
+    func cycleSortMode() {
+        sortMode = sortMode.next
     }
 
     func navigateToTag(_ tag: String) {
@@ -368,10 +424,12 @@ final class UpkeepStore {
                 let loadedLog = try await persistence.loadLogEntries()
                 let loadedVendors = try await persistence.loadVendors()
                 let loadedMembers = try await persistence.loadMembers()
+                let loadedConfig = (try? await persistence.loadConfig()) ?? AppConfig()
                 self.items = loadedItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.logEntries = loadedLog.sorted { $0.completedDate > $1.completedDate }
                 self.vendors = loadedVendors.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.members = loadedMembers
+                self.config = loadedConfig
                 self.error = nil
                 snapshotVersions()
                 await syncAllNotifications()
@@ -383,7 +441,6 @@ final class UpkeepStore {
     }
 
     private func syncAllNotifications() async {
-        let config = (try? await persistence.loadConfig()) ?? AppConfig()
         _ = await notifications?.requestPermission()
         for item in activeItems {
             let due = nextDueDate(for: item)
@@ -405,12 +462,14 @@ final class UpkeepStore {
     // MARK: - Item CRUD
 
     func createItem(name: String, category: MaintenanceCategory = .other, priority: Priority = .medium,
+                    scheduleKind: ScheduleKind = .recurring,
                     frequencyInterval: Int = 1, frequencyUnit: FrequencyUnit = .months,
                     startDate: Date = .now, notes: String = "", vendorID: UUID? = nil,
                     supply: Supply? = nil, tags: [String] = [],
                     seasonalWindow: SeasonalWindow? = nil) {
         let item = MaintenanceItem(
             name: name, category: category, priority: priority,
+            scheduleKind: scheduleKind,
             frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
             startDate: startDate, notes: notes, vendorID: vendorID,
             supply: supply, tags: tags, seasonalWindow: seasonalWindow
@@ -608,19 +667,32 @@ final class UpkeepStore {
         )
         registerUndo("Log Entry") { store in store.deleteLogEntry(id: entry.id) }
 
-        // Decrement supply stock if the linked item tracks supplies
-        if let itemID, var item = items.first(where: { $0.id == itemID }),
-           var supply = item.supply {
+        // Apply item-side side effects of completion: supply decrement and/or
+        // auto-deactivate for to-do items. Combined so we save the item once.
+        if let itemID, var item = items.first(where: { $0.id == itemID }) {
             let prevItem = item
-            supply.stockOnHand = max(0, supply.stockOnHand - supply.quantityPerUse)
-            item.supply = supply
-            item.touch(by: currentMemberID)
-            registerUndo("Decrement Supply") { store in store.updateItem(prevItem, actionName: "Undo Supply Change") }
-            Task {
-                do {
-                    try await persistence.saveItem(item)
-                } catch {
-                    self.error = error.localizedDescription
+            var modified = false
+
+            if var supply = item.supply {
+                supply.stockOnHand = max(0, supply.stockOnHand - supply.quantityPerUse)
+                item.supply = supply
+                modified = true
+            }
+
+            if item.isOneTime && item.isActive && config.autoDeactivateCompletedTodos {
+                item.isActive = false
+                modified = true
+            }
+
+            if modified {
+                item.touch(by: currentMemberID)
+                registerUndo("Complete Item") { store in store.updateItem(prevItem, actionName: "Undo Complete") }
+                Task {
+                    do {
+                        try await persistence.saveItem(item)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
                 }
             }
         }
@@ -823,6 +895,7 @@ final class UpkeepStore {
 
     func saveConfig(_ config: AppConfig) async throws {
         try await persistence.saveConfig(config)
+        self.config = config
     }
 
     // MARK: - Home Profile

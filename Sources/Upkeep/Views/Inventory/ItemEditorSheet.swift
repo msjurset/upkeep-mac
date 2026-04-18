@@ -8,6 +8,7 @@ struct ItemEditorSheet: View {
     @State private var name = ""
     @State private var category: MaintenanceCategory = .other
     @State private var priority: Priority = .medium
+    @State private var scheduleKind: ScheduleKind = .recurring
     @State private var frequencyInterval = 1
     @State private var frequencyUnit: FrequencyUnit = .months
     @State private var startDate = Date.now
@@ -21,7 +22,6 @@ struct ItemEditorSheet: View {
     @State private var productURL = ""
     @State private var unitCostString = ""
     @State private var tagsString = ""
-    @State private var useSeasonal = false
     @State private var windowStartMonth = 6
     @State private var windowStartDay = 1
     @State private var windowEndMonth = 7
@@ -56,13 +56,15 @@ struct ItemEditorSheet: View {
                 }
 
                 Section("Schedule") {
-                    Picker("Type", selection: $useSeasonal) {
-                        Text("Recurring").tag(false)
-                        Text("Seasonal window").tag(true)
+                    Picker("Type", selection: $scheduleKind) {
+                        Text("Recurring").tag(ScheduleKind.recurring)
+                        Text("Seasonal").tag(ScheduleKind.seasonal)
+                        Text("To-do").tag(ScheduleKind.oneTime)
                     }
                     .pickerStyle(.segmented)
 
-                    if useSeasonal {
+                    switch scheduleKind {
+                    case .seasonal:
                         HStack {
                             Text("Window opens")
                             Spacer()
@@ -89,7 +91,7 @@ struct ItemEditorSheet: View {
                             Stepper("\(windowEndDay)", value: $windowEndDay, in: 1...31)
                                 .frame(width: 80)
                         }
-                    } else {
+                    case .recurring:
                         HStack(spacing: 8) {
                             Text("Every")
                             Stepper(value: $frequencyInterval, in: 1...365) {
@@ -105,9 +107,15 @@ struct ItemEditorSheet: View {
                             .labelsHidden()
                             .frame(width: 100)
                         }
+                    case .oneTime:
+                        EmptyView()
                     }
 
-                    DatePicker("Start tracking from", selection: $startDate, displayedComponents: .date)
+                    DatePicker(
+                        scheduleKind == .oneTime ? "Do by" : "Start tracking from",
+                        selection: $startDate,
+                        displayedComponents: .date
+                    )
                 }
 
                 Section("Vendor") {
@@ -156,6 +164,7 @@ struct ItemEditorSheet: View {
                 name = item.name
                 category = item.category
                 priority = item.priority
+                scheduleKind = item.scheduleKind
                 frequencyInterval = item.frequencyInterval
                 frequencyUnit = item.frequencyUnit
                 startDate = item.startDate
@@ -164,7 +173,6 @@ struct ItemEditorSheet: View {
                 tagsString = item.tags.joined(separator: ", ")
                 isActive = item.isActive
                 if let window = item.seasonalWindow {
-                    useSeasonal = true
                     windowStartMonth = window.startMonth
                     windowStartDay = window.startDay
                     windowEndMonth = window.endMonth
@@ -202,7 +210,7 @@ struct ItemEditorSheet: View {
     }
 
     private var currentSeasonalWindow: SeasonalWindow? {
-        guard useSeasonal else { return nil }
+        guard scheduleKind == .seasonal else { return nil }
         return SeasonalWindow(
             startMonth: windowStartMonth, startDay: windowStartDay,
             endMonth: windowEndMonth, endDay: windowEndDay
@@ -220,6 +228,7 @@ struct ItemEditorSheet: View {
             existing.name = trimmedName
             existing.category = category
             existing.priority = priority
+            existing.scheduleKind = scheduleKind
             existing.frequencyInterval = frequencyInterval
             existing.frequencyUnit = frequencyUnit
             existing.startDate = startDate
@@ -233,6 +242,7 @@ struct ItemEditorSheet: View {
         } else {
             store.createItem(
                 name: trimmedName, category: category, priority: priority,
+                scheduleKind: scheduleKind,
                 frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
                 startDate: startDate, notes: notes, vendorID: selectedVendorID,
                 supply: currentSupply, tags: parsedTags,

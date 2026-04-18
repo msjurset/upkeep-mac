@@ -111,6 +111,7 @@ struct PriorityBadge: View {
         Image(systemName: priority.icon)
             .font(.caption2)
             .foregroundStyle(Color.priorityColor(priority))
+            .help("\(priority.label) priority")
     }
 }
 
@@ -135,6 +136,43 @@ struct CategoryBadge: View {
         .background(Color.categoryColor(category).opacity(0.12))
         .foregroundStyle(Color.categoryColor(category))
         .clipShape(Capsule())
+    }
+}
+
+// MARK: - Kind Badge
+
+struct KindBadge: View {
+    let kind: ScheduleKind
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: 15))
+            .foregroundStyle(tint)
+            .help(tooltip)
+    }
+
+    private var icon: String {
+        switch kind {
+        case .seasonal: "snowflake"
+        case .oneTime: "checkmark.circle"
+        case .recurring: "calendar.badge.clock"
+        }
+    }
+
+    private var tint: Color {
+        switch kind {
+        case .seasonal: .cyan
+        case .oneTime: .green
+        case .recurring: .primary.opacity(0.7)
+        }
+    }
+
+    private var tooltip: String {
+        switch kind {
+        case .seasonal: "Seasonal"
+        case .oneTime: "To-do"
+        case .recurring: "Recurring"
+        }
     }
 }
 
@@ -176,6 +214,9 @@ struct SupplyBadge: View {
         .background((supply.isOutOfStock ? Color.upkeepRed : .orange).opacity(0.12))
         .foregroundStyle(supply.isOutOfStock ? .upkeepRed : .orange)
         .clipShape(Capsule())
+        .help(supply.isOutOfStock
+              ? "Out of stock — reorder now"
+              : "\(supply.stockOnHand) in stock (\(supply.quantityPerUse) per use)")
     }
 }
 
@@ -187,9 +228,9 @@ struct AddCircleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "plus")
-                .font(.callout.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.upkeepAmber)
-                .frame(width: 28, height: 28)
+                .frame(width: 25, height: 25)
                 .background(Color.upkeepAmber.opacity(0.15))
                 .clipShape(Circle())
         }

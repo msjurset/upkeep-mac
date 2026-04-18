@@ -36,13 +36,29 @@ struct ItemListView: View {
 
             Divider()
 
-            HStack {
+            HStack(spacing: 10) {
                 Spacer()
+                Button {
+                    store.cycleSortMode()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(store.sortMode.rawValue)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: store.sortMode.icon)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Sort: \(store.sortMode.rawValue) — click to cycle")
+
                 addButton { showNewItemSheet = true }
+                    .help("New item")
             }
             .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
+            .padding(.top, 6)
+            .padding(.bottom, 0)
 
             List(selection: $bulkSelection) {
                 ForEach(items) { item in
@@ -152,6 +168,7 @@ struct ItemRow: View {
                 .font(.title3)
                 .foregroundStyle(Color.categoryColor(item.category))
                 .frame(width: 28)
+                .help(item.category.label)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
@@ -177,14 +194,22 @@ struct ItemRow: View {
 
             Spacer()
 
-            if let supply = item.supply, supply.needsReorder {
-                SupplyBadge(supply: supply)
+            KindBadge(kind: item.scheduleKind)
+                .frame(width: 20)
+
+            HStack(spacing: 6) {
+                if let supply = item.supply, supply.needsReorder {
+                    SupplyBadge(supply: supply)
+                }
+
+                PriorityBadge(priority: item.priority)
+                    .frame(width: 14)
+
+                let days = store.daysUntilDue(item)
+                DueDateBadge(daysUntilDue: days)
+                    .frame(width: 100, alignment: .trailing)
+                    .help("Due \(store.nextDueDate(for: item).shortDate)")
             }
-
-            PriorityBadge(priority: item.priority)
-
-            let days = store.daysUntilDue(item)
-            DueDateBadge(daysUntilDue: days)
         }
         .padding(.vertical, 2)
     }

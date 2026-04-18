@@ -12,19 +12,34 @@ struct SchedulingService: Sendable {
     }
 
     func nextDueDate(for item: MaintenanceItem) -> Date {
-        if let window = item.seasonalWindow {
-            return nextSeasonalDueDate(for: item, window: window)
+        switch item.scheduleKind {
+        case .oneTime:
+            return item.startDate
+        case .seasonal:
+            if let window = item.seasonalWindow {
+                return nextSeasonalDueDate(for: item, window: window)
+            }
+            return nextFrequencyDueDate(for: item)
+        case .recurring:
+            return nextFrequencyDueDate(for: item)
         }
-        return nextFrequencyDueDate(for: item)
     }
 
     func isOverdue(_ item: MaintenanceItem) -> Bool {
         guard item.isActive else { return false }
         if item.isSnoozed { return false }
-        if let window = item.seasonalWindow {
-            return isSeasonalOverdue(item, window: window)
+        switch item.scheduleKind {
+        case .oneTime:
+            if lastCompletion(for: item.id) != nil { return false }
+            return item.startDate < .now
+        case .seasonal:
+            if let window = item.seasonalWindow {
+                return isSeasonalOverdue(item, window: window)
+            }
+            return nextFrequencyDueDate(for: item) < .now
+        case .recurring:
+            return nextFrequencyDueDate(for: item) < .now
         }
-        return nextFrequencyDueDate(for: item) < .now
     }
 
     func daysUntilDue(_ item: MaintenanceItem) -> Int {
@@ -44,6 +59,9 @@ struct SchedulingService: Sendable {
 
     func currentStreak(for itemID: UUID) -> Int {
         guard let item = items.first(where: { $0.id == itemID }) else { return 0 }
+
+        // Streaks are meaningless for one-time items
+        if item.isOneTime { return 0 }
 
         // For seasonal items, count consecutive years with a completion inside the window
         if let window = item.seasonalWindow {

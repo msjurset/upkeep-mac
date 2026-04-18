@@ -133,6 +133,82 @@ struct MaintenanceItemTests {
         let biweekly = MaintenanceItem(name: "Test", frequencyInterval: 2, frequencyUnit: .weeks)
         #expect(biweekly.frequencyDescription == "Every 2 weeks")
     }
+
+    @Test("to-do frequency description shows due date")
+    func todoDescription() {
+        let todo = MaintenanceItem(name: "Test", scheduleKind: .oneTime)
+        #expect(todo.frequencyDescription.hasPrefix("Do by"))
+    }
+
+    @Test("scheduleKind round-trip with seasonal window")
+    func scheduleKindSeasonal() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(
+            name: "Trim",
+            scheduleKind: .seasonal,
+            seasonalWindow: SeasonalWindow(startMonth: 5, startDay: 1, endMonth: 6, endDay: 30)
+        )
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.scheduleKind == .seasonal)
+        #expect(decoded.isSeasonal)
+        #expect(decoded.seasonalWindow != nil)
+    }
+
+    @Test("scheduleKind round-trip for to-do")
+    func scheduleKindTodo() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(name: "Fix ceiling", scheduleKind: .oneTime)
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.scheduleKind == .oneTime)
+        #expect(decoded.isOneTime)
+    }
+
+    @Test("pre-1.6 JSON without scheduleKind infers recurring")
+    func backCompatRecurring() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        // Encode, strip the scheduleKind key to simulate pre-1.6 data
+        let item = MaintenanceItem(name: "Filter", frequencyInterval: 3, frequencyUnit: .months)
+        let data = try encoder.encode(item)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "scheduleKind")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: stripped)
+        #expect(decoded.scheduleKind == .recurring)
+    }
+
+    @Test("pre-1.6 JSON with seasonalWindow infers seasonal")
+    func backCompatSeasonal() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(
+            name: "Trim",
+            seasonalWindow: SeasonalWindow(startMonth: 5, startDay: 1, endMonth: 6, endDay: 30)
+        )
+        let data = try encoder.encode(item)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "scheduleKind")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: stripped)
+        #expect(decoded.scheduleKind == .seasonal)
+        #expect(decoded.isSeasonal)
+    }
 }
 
 // MARK: - Supply
@@ -525,6 +601,7 @@ struct AppConfigTests {
         #expect(config.defaultReminderDaysBefore == 3)
         #expect(config.showCompletedInDashboard == true)
         #expect(config.recentHistoryDays == 30)
+        #expect(config.autoDeactivateCompletedTodos == true)
     }
 
     @Test("JSON round-trip")
@@ -532,11 +609,37 @@ struct AppConfigTests {
         var config = AppConfig()
         config.defaultReminderDaysBefore = 7
         config.recentHistoryDays = 60
+        config.autoDeactivateCompletedTodos = false
 
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(AppConfig.self, from: data)
 
         #expect(decoded.defaultReminderDaysBefore == 7)
         #expect(decoded.recentHistoryDays == 60)
+        #expect(decoded.autoDeactivateCompletedTodos == false)
+    }
+
+    @Test("pre-1.6 JSON without autoDeactivateCompletedTodos decodes with default true")
+    func backCompat() throws {
+        let json = """
+        {
+          "defaultReminderDaysBefore": 5,
+          "showCompletedInDashboard": true,
+          "recentHistoryDays": 45
+        }
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppConfig.self, from: json)
+        #expect(decoded.defaultReminderDaysBefore == 5)
+        #expect(decoded.autoDeactivateCompletedTodos == true)
+    }
+
+    @Test("empty JSON decodes to defaults")
+    func emptyDecode() throws {
+        let data = "{}".data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppConfig.self, from: data)
+        #expect(decoded.defaultReminderDaysBefore == 3)
+        #expect(decoded.showCompletedInDashboard == true)
+        #expect(decoded.recentHistoryDays == 30)
+        #expect(decoded.autoDeactivateCompletedTodos == true)
     }
 }

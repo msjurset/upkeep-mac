@@ -20,7 +20,8 @@ struct HelpView: View {
                 .padding(.bottom, 8)
 
                 helpSection("Getting Started", items: [
-                    ("wrench.and.screwdriver", "Add Items", "Add everything in your home that needs recurring maintenance — HVAC filters, gutters, water heater, etc. Set the frequency and the app tracks when things are due."),
+                    ("wrench.and.screwdriver", "Add Items", "Add everything in your home that needs maintenance — HVAC filters, gutters, water heater, etc. Pick Recurring, Seasonal, or To-do as the schedule type."),
+                    ("checklist", "To-do Items", "One-off fixes like \"repair hole in ceiling\" use the To-do schedule. Set a \"do by\" date; the item auto-deactivates when you log it complete."),
                     ("book", "Log Maintenance", "When you do maintenance, log it. You can log against an inventory item or create standalone entries for one-off work."),
                     ("person.2", "Add Vendors", "Keep your service providers' contact info handy and link them to maintenance items."),
                     ("shippingbox", "Track Supplies", "For items that consume supplies (filters, salt, batteries), track stock levels and get reorder alerts."),

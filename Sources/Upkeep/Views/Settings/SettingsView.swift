@@ -104,6 +104,13 @@ struct SettingsView: View {
                 Stepper("Recent history: \(config.recentHistoryDays) days", value: $config.recentHistoryDays, in: 7...365, step: 7)
             }
 
+            Section("To-do Items") {
+                Toggle("Deactivate to-dos when completed", isOn: $config.autoDeactivateCompletedTodos)
+                Text("When a to-do is logged, remove it from the active list. You can reactivate it later if needed.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
             Section("Data Location") {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

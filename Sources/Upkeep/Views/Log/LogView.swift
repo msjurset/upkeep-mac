@@ -12,6 +12,7 @@ struct LogView: View {
             HStack {
                 Spacer()
                 addButton { showNewLogEntrySheet = true }
+                    .help("New log entry")
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)

@@ -110,6 +110,56 @@ struct SchedulingServiceTests {
         #expect(svc.currentStreak(for: UUID()) == 0)
     }
 
+    @Test("one-time nextDueDate returns startDate")
+    func oneTimeNextDue() {
+        let due = Calendar.current.date(byAdding: .day, value: 5, to: .now)!
+        let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: due)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(svc.nextDueDate(for: item) == due)
+    }
+
+    @Test("one-time overdue when past due and not completed")
+    func oneTimeOverdue() {
+        let past = Calendar.current.date(byAdding: .day, value: -5, to: .now)!
+        let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: past)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(svc.isOverdue(item))
+    }
+
+    @Test("one-time not overdue when completed")
+    func oneTimeCompleted() {
+        let past = Calendar.current.date(byAdding: .day, value: -5, to: .now)!
+        let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: past)
+        let log = LogEntry(itemID: item.id, title: "Done", category: .other, completedDate: .now)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("one-time not overdue when start date is in future")
+    func oneTimeFuture() {
+        let future = Calendar.current.date(byAdding: .day, value: 5, to: .now)!
+        let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: future)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("one-time not overdue when inactive")
+    func oneTimeInactive() {
+        let past = Calendar.current.date(byAdding: .day, value: -5, to: .now)!
+        var item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: past)
+        item.isActive = false
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("one-time streak is always zero")
+    func oneTimeStreak() {
+        let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime)
+        let log = LogEntry(itemID: item.id, title: "Done", category: .other, completedDate: .now)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        #expect(svc.currentStreak(for: item.id) == 0)
+    }
+
     @Test("all frequency units produce correct due dates",
           arguments: [
             (FrequencyUnit.days, Calendar.Component.day),

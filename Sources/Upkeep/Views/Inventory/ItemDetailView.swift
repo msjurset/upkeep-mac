@@ -223,23 +223,40 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 20) {
-                if let window = item.seasonalWindow {
-                    scheduleCard(title: "Window", value: window.description, icon: "leaf")
+                switch item.scheduleKind {
+                case .seasonal:
+                    if let window = item.seasonalWindow {
+                        scheduleCard(title: "Window", value: window.description, icon: "leaf")
 
-                    let status = store.scheduling.seasonalStatus(for: item, window: window)
-                    switch status {
-                    case .upcoming(let days):
-                        scheduleCard(title: "Opens In", value: "\(days) days", icon: "calendar", tint: .upkeepAmber)
-                    case .inWindow:
-                        scheduleCard(title: "Status", value: "In window — do it now", icon: "exclamationmark.circle", tint: .upkeepGreen)
-                    case .overdue:
-                        scheduleCard(title: "Status", value: "Window passed", icon: "exclamationmark.circle", tint: .upkeepRed)
-                    case .doneForYear:
-                        scheduleCard(title: "Status", value: "Done for this year", icon: "checkmark.circle", tint: .upkeepGreen)
-                    case .skippedForYear:
-                        scheduleCard(title: "Status", value: "Skipped this year", icon: "forward.circle", tint: .secondary)
+                        let status = store.scheduling.seasonalStatus(for: item, window: window)
+                        switch status {
+                        case .upcoming(let days):
+                            scheduleCard(title: "Opens In", value: "\(days) days", icon: "calendar", tint: .upkeepAmber)
+                        case .inWindow:
+                            scheduleCard(title: "Status", value: "In window — do it now", icon: "exclamationmark.circle", tint: .upkeepGreen)
+                        case .overdue:
+                            scheduleCard(title: "Status", value: "Window passed", icon: "exclamationmark.circle", tint: .upkeepRed)
+                        case .doneForYear:
+                            scheduleCard(title: "Status", value: "Done for this year", icon: "checkmark.circle", tint: .upkeepGreen)
+                        case .skippedForYear:
+                            scheduleCard(title: "Status", value: "Skipped this year", icon: "forward.circle", tint: .secondary)
+                        }
                     }
-                } else {
+                case .oneTime:
+                    scheduleCard(title: "Do By", value: item.startDate.shortDate, icon: "calendar")
+                    let last = store.lastCompletion(for: item.id)
+                    if last != nil {
+                        scheduleCard(title: "Status", value: "Completed", icon: "checkmark.circle", tint: .upkeepGreen)
+                    } else {
+                        let days = store.daysUntilDue(item)
+                        scheduleCard(
+                            title: days < 0 ? "Overdue" : "Due",
+                            value: dueDateText(days),
+                            icon: days < 0 ? "exclamationmark.circle" : "calendar",
+                            tint: Color.dueDateColor(days)
+                        )
+                    }
+                case .recurring:
                     scheduleCard(title: "Frequency", value: item.frequencyDescription, icon: "arrow.clockwise")
 
                     let days = store.daysUntilDue(item)
@@ -257,7 +274,7 @@ struct ItemDetailView: View {
                         value: last.completedDate.shortDate,
                         icon: "checkmark.circle"
                     )
-                } else {
+                } else if !item.isOneTime {
                     scheduleCard(
                         title: "Tracking Since",
                         value: item.startDate.shortDate,

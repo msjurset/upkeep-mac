@@ -34,11 +34,26 @@ struct SeasonalWindow: Codable, Hashable, Sendable {
     }
 }
 
+enum ScheduleKind: String, Codable, CaseIterable, Sendable {
+    case recurring
+    case seasonal
+    case oneTime
+
+    var label: String {
+        switch self {
+        case .recurring: "Recurring"
+        case .seasonal: "Seasonal"
+        case .oneTime: "To-do"
+        }
+    }
+}
+
 struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
     var name: String
     var category: MaintenanceCategory
     var priority: Priority
+    var scheduleKind: ScheduleKind
     var frequencyInterval: Int
     var frequencyUnit: FrequencyUnit
     var startDate: Date
@@ -57,7 +72,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var updatedAt: Date
 
     init(id: UUID = UUID(), name: String, category: MaintenanceCategory = .other,
-         priority: Priority = .medium, frequencyInterval: Int = 1,
+         priority: Priority = .medium, scheduleKind: ScheduleKind? = nil,
+         frequencyInterval: Int = 1,
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
          notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
          tags: [String] = [], seasonalWindow: SeasonalWindow? = nil,
@@ -69,6 +85,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.name = name
         self.category = category
         self.priority = priority
+        self.scheduleKind = scheduleKind ?? (seasonalWindow != nil ? .seasonal : .recurring)
         self.frequencyInterval = frequencyInterval
         self.frequencyUnit = frequencyUnit
         self.startDate = startDate
@@ -109,6 +126,9 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         lastModifiedBy = try container.decodeIfPresent(UUID.self, forKey: .lastModifiedBy)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        // Pre-1.6 JSON: infer scheduleKind from seasonalWindow presence
+        scheduleKind = try container.decodeIfPresent(ScheduleKind.self, forKey: .scheduleKind)
+            ?? (seasonalWindow != nil ? .seasonal : .recurring)
     }
 
     mutating func touch(by memberID: UUID? = nil) {
@@ -122,15 +142,20 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         return snoozedUntil > .now
     }
 
-    var isSeasonal: Bool { seasonalWindow != nil }
+    var isSeasonal: Bool { scheduleKind == .seasonal }
+    var isOneTime: Bool { scheduleKind == .oneTime }
 
     var frequencyDescription: String {
-        if let window = seasonalWindow {
-            return window.description
+        switch scheduleKind {
+        case .seasonal:
+            return seasonalWindow?.description ?? "Seasonal"
+        case .oneTime:
+            return "Do by \(startDate.shortDate)"
+        case .recurring:
+            if frequencyInterval == 1 {
+                return "Every \(frequencyUnit.singular)"
+            }
+            return "Every \(frequencyInterval) \(frequencyUnit.label.lowercased())"
         }
-        if frequencyInterval == 1 {
-            return "Every \(frequencyUnit.singular)"
-        }
-        return "Every \(frequencyInterval) \(frequencyUnit.label.lowercased())"
     }
 }

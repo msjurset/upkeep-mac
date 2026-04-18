@@ -10,6 +10,7 @@ struct VendorListView: View {
             HStack {
                 Spacer()
                 addButton { showNewVendorSheet = true }
+                    .help("New vendor")
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
