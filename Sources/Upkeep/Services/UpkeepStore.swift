@@ -996,6 +996,18 @@ final class UpkeepStore {
         }
     }
 
+    func updateMember(_ member: HouseholdMember) {
+        guard let idx = members.firstIndex(where: { $0.id == member.id }) else { return }
+        members[idx] = member
+        Task {
+            do {
+                try await persistence.saveMembers(members)
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     func memberName(for id: UUID?) -> String? {
         guard let id else { return nil }
         return members.first { $0.id == id }?.name
