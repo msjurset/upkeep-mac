@@ -6,16 +6,16 @@
     <description>Upkeep app updates</description>
     <language>en</language>
     <item>
-      <title>Version 1.6.0</title>
-      <sparkle:version>38</sparkle:version>
-      <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+      <title>Version 1.7.0</title>
+      <sparkle:version>40</sparkle:version>
+      <sparkle:shortVersionString>1.7.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <pubDate>Sat, 18 Apr 2026 17:41:28 +0000</pubDate>
+      <pubDate>Thu, 23 Apr 2026 16:51:44 +0000</pubDate>
       <enclosure
-        url="https://github.com/msjurset/upkeep-mac/releases/download/v1.6.0/Upkeep-1.6.0.dmg"
-        length="3955104"
+        url="https://github.com/msjurset/upkeep-mac/releases/download/v1.7.0/Upkeep-1.7.0.dmg"
+        length="4097473"
         type="application/octet-stream"
-        sparkle:edSignature="4NFQej3Dk2AyJCsQjZ59Fl8LW9EzihxvEhxOuFNfN0Wou3qxiPXlewaSwOpwbOP4BBtq3L7el9h2P6Yd/NwPDw==" />
+        sparkle:edSignature="HeEb8HWHHBdvLePtAs6m4gPOb9BbWg0IVYAT3ElEYpJhnB9K0hkPRYD6awjHA+6NTWsDdgiYk3yWQz7pzmx6Bw==" />
     </item>
   </channel>
 </rss>
