@@ -189,6 +189,32 @@ struct FilteringTests {
         #expect(upcoming[0].name == "Upcoming")
     }
 
+    @Test("upcomingItems excludes ideas")
+    @MainActor func upcomingExcludesIdeas() {
+        let store = makeStore()
+        // startDate = now makes nextDueDate 1 month out → upcoming
+        let recurring = makeItem(name: "Filter", startDate: .now)
+        let idea = MaintenanceItem(name: "Replace carpet", scheduleKind: .idea)
+        store.items = [recurring, idea]
+        let upcoming = store.upcomingItems
+        #expect(upcoming.count == 1)
+        #expect(upcoming[0].name == "Filter")
+    }
+
+    @Test("ideaItems returns only ideas sorted by updatedAt")
+    @MainActor func ideaItemsFilter() {
+        let store = makeStore()
+        var older = MaintenanceItem(name: "Old idea", scheduleKind: .idea)
+        older.updatedAt = Calendar.current.date(byAdding: .day, value: -10, to: .now)!
+        let newer = MaintenanceItem(name: "New idea", scheduleKind: .idea)
+        let regular = makeItem(name: "Regular")
+        store.items = [older, regular, newer]
+        let ideas = store.ideaItems
+        #expect(ideas.count == 2)
+        #expect(ideas[0].name == "New idea")
+        #expect(ideas[1].name == "Old idea")
+    }
+
     @Test("filteredActiveItems with text search")
     @MainActor func filteredByText() {
         let store = makeStore()

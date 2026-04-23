@@ -34,7 +34,7 @@ struct DashboardView: View {
 
     /// Two-column layout for wider windows
     private var wideLayout: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 20) {
             // Health overview spans full width
             healthOverview
                 .padding(.horizontal, 24)
@@ -42,13 +42,14 @@ struct DashboardView: View {
             // Maintenance timeline
             if !store.items.isEmpty || !store.logEntries.isEmpty {
                 MaintenanceTimelineView()
+                    .padding(.top, 16)
                     .padding(.horizontal, 24)
             }
 
             // Two-column body
             HStack(alignment: .top, spacing: 20) {
                 // Left column: action items & activity
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 20) {
                     if !store.lowStockItems.isEmpty {
                         reorderAlerts
                     }
@@ -66,7 +67,7 @@ struct DashboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Right column: planning & costs
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 20) {
                     seasonalSection
                     if !store.logEntries.isEmpty {
                         costSection
@@ -80,10 +81,11 @@ struct DashboardView: View {
 
     /// Single-column layout for narrower windows
     private var narrowLayout: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 20) {
             healthOverview
             if !store.items.isEmpty || !store.logEntries.isEmpty {
                 MaintenanceTimelineView()
+                    .padding(.top, 16)
             }
             if !store.lowStockItems.isEmpty {
                 reorderAlerts
@@ -96,6 +98,9 @@ struct DashboardView: View {
             }
             next30DaysTimeline
             seasonalSection
+            if !store.ideaItems.isEmpty {
+                ideasSection
+            }
             if !store.recentLogEntries.isEmpty {
                 recentActivity
             }
@@ -215,7 +220,7 @@ struct DashboardView: View {
                         store.selectedItemID = item.id
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: item.category.icon)
+                            Image(systemName: item.effectiveIcon)
                                 .font(.body)
                                 .foregroundStyle(Color.categoryColor(item.category))
                                 .frame(width: 24)
@@ -311,7 +316,7 @@ struct DashboardView: View {
                         store.selectedItemID = item.id
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: item.category.icon)
+                            Image(systemName: item.effectiveIcon)
                                 .font(.body)
                                 .foregroundStyle(Color.categoryColor(item.category))
                                 .frame(width: 24)
@@ -432,9 +437,6 @@ struct DashboardView: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.background))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator.opacity(0.2)))
                 }
             }
         }
@@ -479,7 +481,7 @@ struct DashboardView: View {
                                 store.selectedItemID = item.id
                             } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: item.category.icon)
+                                    Image(systemName: item.effectiveIcon)
                                         .font(.body)
                                         .foregroundStyle(Color.categoryColor(item.category))
                                         .frame(width: 24)
@@ -552,6 +554,44 @@ struct DashboardView: View {
             .map { $0 }
     }
 
+    // MARK: - Ideas
+
+    private var ideasSection: some View {
+        sectionView(title: "Ideas", icon: "lightbulb", tint: .yellow) {
+            ForEach(store.ideaItems.prefix(5)) { item in
+                Button {
+                    store.navigation = .inventoryIdeas
+                    store.selectedItemID = item.id
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: item.effectiveIcon)
+                            .font(.callout)
+                            .foregroundStyle(Color.categoryColor(item.category))
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.body)
+                                .lineLimit(1)
+                            Text("Updated \(item.updatedAt.shortDate)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            if store.ideaItems.count > 5 {
+                moreButton(count: store.ideaItems.count - 5, destination: .inventoryIdeas)
+            }
+        }
+    }
+
     // MARK: - Recent Activity
 
     private var recentActivity: some View {
@@ -619,12 +659,12 @@ struct DashboardView: View {
                             }
                         }
                     }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.background))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator.opacity(0.2)))
+                    .padding(.top, 4)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelStyle()
     }
 
     private func monthCostCard(label: String, cost: Decimal) -> some View {
@@ -715,10 +755,12 @@ struct DashboardView: View {
                     .font(.headline)
             }
 
-            VStack(spacing: 1) {
+            VStack(spacing: 6) {
                 content()
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .panelStyle()
     }
 
     private func dashboardLogRow(_ entry: LogEntry) -> some View {

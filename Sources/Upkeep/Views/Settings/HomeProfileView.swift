@@ -185,7 +185,12 @@ struct SystemEditorSheet: View {
 
                 Toggle("Track install date", isOn: $hasInstalledDate)
                 if hasInstalledDate {
-                    DatePicker("Installed", selection: $installedDate, displayedComponents: .date)
+                    LabeledContent("Installed") {
+                        HStack(spacing: 6) {
+                            StepperDateField(selection: $installedDate)
+                            CalendarPopoverButton(selection: $installedDate)
+                        }
+                    }
                 }
 
                 LeadingTextField(label: "Expected lifespan (years)", text: $lifespanYears)

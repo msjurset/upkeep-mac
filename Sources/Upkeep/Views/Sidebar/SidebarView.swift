@@ -16,7 +16,8 @@ struct SidebarView: View {
             Section("Inventory") {
                 sidebarRow("Upcoming", icon: "clock", tag: .inventoryUpcoming, count: store.upcomingItems.count, identifier: "sidebar.upcoming")
                 sidebarRow("Overdue", icon: "exclamationmark.circle", tag: .inventoryOverdue, count: store.overdueItems.count, tint: store.overdueItems.isEmpty ? nil : .upkeepRed, identifier: "sidebar.overdue")
-                sidebarRow("All Items", icon: "checklist", tag: .inventoryAll, count: store.activeItems.count, identifier: "sidebar.allItems")
+                sidebarRow("Ideas", icon: "lightbulb", tag: .inventoryIdeas, count: store.ideaItems.count, identifier: "sidebar.ideas")
+                sidebarRow("All Items", icon: "checklist", tag: .inventoryAll, count: store.items.count, identifier: "sidebar.allItems")
             }
 
             Section("Journal") {

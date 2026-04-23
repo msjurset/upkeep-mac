@@ -152,6 +152,29 @@ struct SchedulingServiceTests {
         #expect(!svc.isOverdue(item))
     }
 
+    @Test("idea is never overdue")
+    func ideaNotOverdue() {
+        let past = Calendar.current.date(byAdding: .year, value: -5, to: .now)!
+        let item = MaintenanceItem(name: "Replace carpet", scheduleKind: .idea, startDate: past)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(!svc.isOverdue(item))
+    }
+
+    @Test("idea nextDueDate is distantFuture")
+    func ideaDistantFuture() {
+        let item = MaintenanceItem(name: "Replace carpet", scheduleKind: .idea)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(svc.nextDueDate(for: item) == .distantFuture)
+    }
+
+    @Test("idea streak is zero even with log entries")
+    func ideaStreak() {
+        let item = MaintenanceItem(name: "Idea", scheduleKind: .idea)
+        let log = LogEntry(itemID: item.id, title: "Got quote", category: .other, completedDate: .now)
+        let svc = SchedulingService(items: [item], logEntries: [log])
+        #expect(svc.currentStreak(for: item.id) == 0)
+    }
+
     @Test("one-time streak is always zero")
     func oneTimeStreak() {
         let item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime)
@@ -322,6 +345,31 @@ struct SeasonalSchedulingTests {
     @Test("non-spanning window does not set spansYearBoundary")
     func nonSpanningWindow() {
         #expect(!juneWindow.spansYearBoundary)
+    }
+
+    @Test("in-window seasonal item returns window end as nextDueDate, not start")
+    func inWindowDueDateIsEnd() {
+        let cal = Calendar.current
+        let now = Date.now
+        // Construct a window that covers today (±5 days)
+        let past = cal.date(byAdding: .day, value: -5, to: now)!
+        let future = cal.date(byAdding: .day, value: 5, to: now)!
+        let startMonth = cal.component(.month, from: past)
+        let startDay = cal.component(.day, from: past)
+        let endMonth = cal.component(.month, from: future)
+        let endDay = cal.component(.day, from: future)
+        let window = SeasonalWindow(startMonth: startMonth, startDay: startDay,
+                                    endMonth: endMonth, endDay: endDay)
+        let item = makeSeasonalItem(window: window)
+        let svc = SchedulingService(items: [item], logEntries: [])
+
+        let due = svc.nextDueDate(for: item)
+        // Due date should be in the future (window end), not the past (window start)
+        #expect(due > now, "Expected due date in the future, got \(due)")
+        // And the item should NOT be overdue
+        #expect(!svc.isOverdue(item))
+        // daysUntilDue should be non-negative
+        #expect(svc.daysUntilDue(item) >= 0)
     }
 
     @Test("new item created before upcoming window is not overdue")

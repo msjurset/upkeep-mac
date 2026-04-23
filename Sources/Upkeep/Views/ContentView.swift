@@ -122,7 +122,7 @@ struct ContentView: View {
     private func sidebarSection(_ item: NavigationItem?) -> String {
         switch item {
         case .dashboard: return "dashboard"
-        case .inventoryUpcoming, .inventoryOverdue, .inventoryAll, .itemDetail: return "inventory"
+        case .inventoryUpcoming, .inventoryOverdue, .inventoryIdeas, .inventoryAll, .itemDetail: return "inventory"
         case .log, .logEntryDetail: return "log"
         case .vendors, .vendorDetail: return "vendors"
         case .homeProfile: return "home"
@@ -147,8 +147,11 @@ struct ContentListView: View {
         case .inventoryOverdue:
             ItemListView(items: store.filteredOverdueItems, title: "Overdue", showNewItemSheet: $showNewItemSheet)
                 .accessibilityIdentifier("list.items")
+        case .inventoryIdeas:
+            ItemListView(items: store.filteredIdeaItems, title: "Ideas", showNewItemSheet: $showNewItemSheet)
+                .accessibilityIdentifier("list.items")
         case .inventoryAll:
-            ItemListView(items: store.filteredActiveItems, title: "All Items", showNewItemSheet: $showNewItemSheet)
+            ItemListView(items: store.filteredAllItems, title: "All Items", showNewItemSheet: $showNewItemSheet)
                 .accessibilityIdentifier("list.items")
         case .log, .logEntryDetail:
             LogView(showNewLogEntrySheet: $showNewLogEntrySheet)
@@ -173,7 +176,7 @@ struct DetailView: View {
         case .dashboard:
             DashboardView()
                 .accessibilityIdentifier("detail.dashboard")
-        case .inventoryUpcoming, .inventoryOverdue, .inventoryAll, .itemDetail:
+        case .inventoryUpcoming, .inventoryOverdue, .inventoryIdeas, .inventoryAll, .itemDetail:
             if let item = store.selectedItem {
                 ItemDetailView(item: item)
                     .accessibilityIdentifier("detail.item")

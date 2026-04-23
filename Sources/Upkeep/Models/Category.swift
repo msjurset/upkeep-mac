@@ -10,6 +10,8 @@ enum MaintenanceCategory: String, Codable, CaseIterable, Identifiable, Sendable 
     case lawnAndGarden
     case safety
     case seasonal
+    case admin
+    case cleaning
     case other
 
     var id: String { rawValue }
@@ -25,6 +27,8 @@ enum MaintenanceCategory: String, Codable, CaseIterable, Identifiable, Sendable 
         case .lawnAndGarden: return "Lawn & Garden"
         case .safety: return "Safety"
         case .seasonal: return "Seasonal"
+        case .admin: return "Admin"
+        case .cleaning: return "Cleaning"
         case .other: return "Other"
         }
     }
@@ -40,6 +44,8 @@ enum MaintenanceCategory: String, Codable, CaseIterable, Identifiable, Sendable 
         case .lawnAndGarden: return "leaf"
         case .safety: return "shield.checkered"
         case .seasonal: return "calendar"
+        case .admin: return "folder"
+        case .cleaning: return "bubbles.and.sparkles"
         case .other: return "wrench"
         }
     }

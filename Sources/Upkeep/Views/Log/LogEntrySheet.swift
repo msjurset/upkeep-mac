@@ -14,9 +14,17 @@ struct LogEntrySheet: View {
     @State private var performedBy = ""
     @State private var rating: Int = 0
     @State private var selectedItemID: UUID?
+    @State private var markComplete = true
 
     private var isEditing: Bool { entry != nil }
     private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    private var linkedToDo: MaintenanceItem? {
+        let id = itemID ?? selectedItemID ?? entry?.itemID
+        guard let id else { return nil }
+        guard let item = store.items.first(where: { $0.id == id }), item.isOneTime else { return nil }
+        return item
+    }
 
     var body: some View {
         EditorSheet(
@@ -30,7 +38,7 @@ struct LogEntrySheet: View {
                         Picker("Linked item", selection: $selectedItemID) {
                             Text("None (standalone entry)").tag(UUID?.none)
                             ForEach(store.items) { item in
-                                Label(item.name, systemImage: item.category.icon).tag(UUID?.some(item.id))
+                                Label(item.name, systemImage: item.effectiveIcon).tag(UUID?.some(item.id))
                             }
                         }
                         .onChange(of: selectedItemID) { _, newID in
@@ -43,7 +51,16 @@ struct LogEntrySheet: View {
                         }
                     }
 
-                    LeadingTextField(label: "Title", text: $title)
+                    LeadingTextFieldCore(text: $title, prompt: "Work summary (5–7 words or less)")
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Notes")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: $notes)
+                            .frame(minHeight: 60)
+                            .font(.body)
+                    }
 
                     Picker("Category", selection: $category) {
                         ForEach(MaintenanceCategory.allCases) { cat in
@@ -53,7 +70,12 @@ struct LogEntrySheet: View {
                 }
 
                 Section("Details") {
-                    DatePicker("Date completed", selection: $completedDate, displayedComponents: .date)
+                    LabeledContent("Date completed") {
+                        HStack(spacing: 6) {
+                            StepperDateField(selection: $completedDate)
+                            CalendarPopoverButton(selection: $completedDate)
+                        }
+                    }
 
                     LeadingTextField(label: "Performed by", text: $performedBy, prompt: "Self, vendor name, etc.")
 
@@ -73,10 +95,15 @@ struct LogEntrySheet: View {
                     }
                 }
 
-                Section("Notes") {
-                    TextEditor(text: $notes)
-                        .frame(minHeight: 60)
-                        .font(.body)
+                if !isEditing, linkedToDo != nil {
+                    Section {
+                        Toggle("Mark to-do as complete", isOn: $markComplete)
+                        Text(markComplete
+                             ? "Uncheck to log progress without finishing the to-do."
+                             : "Progress will be logged; the to-do stays active.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
         }
         .frame(width: 460, height: 540)
@@ -125,7 +152,7 @@ struct LogEntrySheet: View {
             store.logCompletion(
                 itemID: resolvedItemID, title: trimmedTitle, category: category,
                 date: completedDate, notes: notes, cost: cost, performedBy: performedBy,
-                rating: ratingValue
+                rating: ratingValue, markComplete: markComplete
             )
         }
     }

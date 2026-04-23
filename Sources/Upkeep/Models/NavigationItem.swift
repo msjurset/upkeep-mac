@@ -4,6 +4,7 @@ enum NavigationItem: Hashable {
     case dashboard
     case inventoryUpcoming
     case inventoryOverdue
+    case inventoryIdeas
     case inventoryAll
     case itemDetail(UUID)
     case log
@@ -18,6 +19,7 @@ enum NavigationItem: Hashable {
         case .dashboard: "dashboard"
         case .inventoryUpcoming: "inventoryUpcoming"
         case .inventoryOverdue: "inventoryOverdue"
+        case .inventoryIdeas: "inventoryIdeas"
         case .inventoryAll, .itemDetail: "inventoryAll"
         case .log, .logEntryDetail: "log"
         case .vendors, .vendorDetail: "vendors"
@@ -30,6 +32,7 @@ enum NavigationItem: Hashable {
         case "dashboard": .dashboard
         case "inventoryUpcoming": .inventoryUpcoming
         case "inventoryOverdue": .inventoryOverdue
+        case "inventoryIdeas": .inventoryIdeas
         case "inventoryAll": .inventoryAll
         case "log": .log
         case "vendors": .vendors

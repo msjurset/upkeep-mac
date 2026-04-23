@@ -159,6 +159,21 @@ struct MaintenanceItemTests {
         #expect(decoded.seasonalWindow != nil)
     }
 
+    @Test("scheduleKind round-trip for idea")
+    func scheduleKindIdea() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(name: "Replace carpet", scheduleKind: .idea)
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.scheduleKind == .idea)
+        #expect(decoded.isIdea)
+        #expect(decoded.frequencyDescription == "Idea")
+    }
+
     @Test("scheduleKind round-trip for to-do")
     func scheduleKindTodo() throws {
         let encoder = JSONEncoder()
@@ -641,5 +656,87 @@ struct AppConfigTests {
         #expect(decoded.showCompletedInDashboard == true)
         #expect(decoded.recentHistoryDays == 30)
         #expect(decoded.autoDeactivateCompletedTodos == true)
+    }
+}
+
+// MARK: - Attachment
+
+@Suite("Attachment")
+struct AttachmentTests {
+    @Test("photo attachment round-trips")
+    func photoRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let a = Attachment(kind: .photo, title: "ceiling-before.jpg", filename: "abc.jpg", sizeBytes: 12345)
+        let data = try encoder.encode(a)
+        let decoded = try decoder.decode(Attachment.self, from: data)
+        #expect(decoded.kind == .photo)
+        #expect(decoded.filename == "abc.jpg")
+        #expect(decoded.isFileBacked)
+    }
+
+    @Test("link attachment round-trips")
+    func linkRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let a = Attachment(kind: .link, title: "Quote", url: "https://example.com/quote")
+        let data = try encoder.encode(a)
+        let decoded = try decoder.decode(Attachment.self, from: data)
+        #expect(decoded.kind == .link)
+        #expect(decoded.url == "https://example.com/quote")
+        #expect(decoded.isExternal)
+    }
+
+    @Test("MaintenanceItem without attachments key still decodes")
+    func itemBackCompat() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(name: "Thing")
+        let data = try encoder.encode(item)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "attachments")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: stripped)
+        #expect(decoded.attachments.isEmpty)
+    }
+
+    @Test("LogEntry without attachments key still decodes")
+    func logBackCompat() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let entry = LogEntry(title: "Did a thing")
+        let data = try encoder.encode(entry)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "attachments")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(LogEntry.self, from: stripped)
+        #expect(decoded.attachments.isEmpty)
+    }
+
+    @Test("MaintenanceItem with attachments round-trips")
+    func itemWithAttachments() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let attachment = Attachment(kind: .link, title: "Inspo", url: "https://example.com")
+        let item = MaintenanceItem(name: "Replace carpet", scheduleKind: .idea, attachments: [attachment])
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.attachments.count == 1)
+        #expect(decoded.attachments[0].url == "https://example.com")
     }
 }

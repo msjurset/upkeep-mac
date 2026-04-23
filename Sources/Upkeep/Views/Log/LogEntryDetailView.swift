@@ -82,7 +82,7 @@ struct LogEntryDetailView: View {
                                 store.selectedItemID = item.id
                             } label: {
                                 HStack(spacing: 6) {
-                                    Image(systemName: item.category.icon)
+                                    Image(systemName: item.effectiveIcon)
                                         .foregroundStyle(Color.categoryColor(item.category))
                                     Text(item.name)
                                         .font(.body.weight(.medium))
@@ -112,6 +112,15 @@ struct LogEntryDetailView: View {
                     }
                     .padding(20)
                 }
+
+                Divider()
+
+                AttachmentsSection(
+                    attachments: entry.attachments,
+                    onAdd: { store.addAttachmentToLog(entryID: entry.id, $0) },
+                    onRemove: { store.removeAttachmentFromLog(entryID: entry.id, attachmentID: $0) }
+                )
+                .padding(20)
             }
         }
         .toolbar {

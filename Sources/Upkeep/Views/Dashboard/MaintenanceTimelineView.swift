@@ -355,14 +355,14 @@ struct MaintenanceTimelineView: View {
 
         return ZStack {
             Text("ACTIVITY TIMELINE")
-                .font(.system(size: 9, weight: .semibold, design: .default))
+                .font(.system(size: 11, weight: .semibold, design: .default))
                 .tracking(1.5)
                 .foregroundStyle(.upkeepAmber.opacity(0.5))
                 .position(x: leftX, y: -4)
                 .opacity(leftOpacity)
 
             Text("UPCOMING")
-                .font(.system(size: 9, weight: .semibold, design: .default))
+                .font(.system(size: 11, weight: .semibold, design: .default))
                 .tracking(1.5)
                 .foregroundStyle(.upkeepAmber.opacity(0.5))
                 .position(x: rightX, y: -4)
@@ -482,7 +482,7 @@ struct MaintenanceTimelineView: View {
                 title: item.name,
                 subtitle: item.frequencyDescription,
                 date: store.nextDueDate(for: item),
-                icon: item.category.icon,
+                icon: item.effectiveIcon,
                 categoryColor: Color.categoryColor(item.category),
                 logEntryID: nil,
                 itemID: item.id
@@ -496,7 +496,7 @@ struct MaintenanceTimelineView: View {
                 title: item.name,
                 subtitle: item.frequencyDescription,
                 date: store.nextDueDate(for: item),
-                icon: item.category.icon,
+                icon: item.effectiveIcon,
                 categoryColor: Color.categoryColor(item.category),
                 logEntryID: nil,
                 itemID: item.id

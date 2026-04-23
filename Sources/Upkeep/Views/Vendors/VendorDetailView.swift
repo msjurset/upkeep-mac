@@ -125,7 +125,7 @@ struct VendorDetailView: View {
                                 store.selectedItemID = item.id
                             } label: {
                                 HStack(spacing: 8) {
-                                    Image(systemName: item.category.icon)
+                                    Image(systemName: item.effectiveIcon)
                                         .foregroundStyle(Color.categoryColor(item.category))
                                     Text(item.name)
                                         .font(.body)

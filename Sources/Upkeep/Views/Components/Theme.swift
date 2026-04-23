@@ -33,6 +33,11 @@ extension Color {
             ? NSColor(red: 0.72, green: 0.55, blue: 0.38, alpha: 1)
             : NSColor(red: 0.55, green: 0.40, blue: 0.25, alpha: 1)
     })
+    static let upkeepPanel = Color(nsColor: .init(name: "upkeepPanel") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+            ? NSColor(white: 1.0, alpha: 0.018)
+            : NSColor(white: 0.0, alpha: 0.02)
+    })
 }
 
 extension ShapeStyle where Self == Color {
@@ -71,6 +76,8 @@ extension ShapeStyle where Self == Color {
         case .lawnAndGarden: return Color(red: 0.3, green: 0.8, blue: 0.4)
         case .safety: return Color(red: 1.0, green: 0.3, blue: 0.3)
         case .seasonal: return Color(red: 0.9, green: 0.55, blue: 0.2)
+        case .admin: return Color(red: 0.50, green: 0.60, blue: 0.75)
+        case .cleaning: return Color(red: 0.30, green: 0.80, blue: 0.75)
         case .other: return .upkeepBrown
         }
     }
@@ -99,6 +106,34 @@ struct CardStyle: ViewModifier {
 extension View {
     func cardStyle(isHovered: Bool = false) -> some View {
         modifier(CardStyle(isHovered: isHovered))
+    }
+}
+
+// MARK: - Panel Style
+// A subtler container than CardStyle: a lightly tinted background with a faint border
+// and no shadow. Used to visually group dashboard content areas without competing with
+// the inner clickable item cards.
+struct PanelStyle: ViewModifier {
+    var cornerRadius: CGFloat = 12
+    var padding: CGFloat = 16
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Color.upkeepPanel)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(.separator.opacity(0.1), lineWidth: 0.5)
+            )
+    }
+}
+
+extension View {
+    func panelStyle(cornerRadius: CGFloat = 12, padding: CGFloat = 16) -> some View {
+        modifier(PanelStyle(cornerRadius: cornerRadius, padding: padding))
     }
 }
 
@@ -156,6 +191,7 @@ struct KindBadge: View {
         case .seasonal: "snowflake"
         case .oneTime: "checkmark.circle"
         case .recurring: "calendar.badge.clock"
+        case .idea: "lightbulb"
         }
     }
 
@@ -164,6 +200,7 @@ struct KindBadge: View {
         case .seasonal: .cyan
         case .oneTime: .green
         case .recurring: .primary.opacity(0.7)
+        case .idea: .yellow
         }
     }
 
@@ -172,6 +209,7 @@ struct KindBadge: View {
         case .seasonal: "Seasonal"
         case .oneTime: "To-do"
         case .recurring: "Recurring"
+        case .idea: "Idea"
         }
     }
 }

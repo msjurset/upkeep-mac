@@ -25,6 +25,7 @@ actor Persistence {
     private let logDir: URL
     private let vendorsDir: URL
     let photosDir: URL
+    let attachmentsDir: URL
 
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -37,6 +38,7 @@ actor Persistence {
         self.logDir = base.appendingPathComponent("log")
         self.vendorsDir = base.appendingPathComponent("vendors")
         self.photosDir = base.appendingPathComponent("photos")
+        self.attachmentsDir = base.appendingPathComponent("attachments")
 
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .iso8601
@@ -48,7 +50,7 @@ actor Persistence {
         self.decoder = dec
 
         let fm = FileManager.default
-        for dir in [base, localURL, itemsDir, logDir, vendorsDir, photosDir] {
+        for dir in [base, localURL, itemsDir, logDir, vendorsDir, photosDir, attachmentsDir] {
             if !fm.fileExists(atPath: dir.path) {
                 try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }
@@ -153,6 +155,25 @@ actor Persistence {
         photosDir.appendingPathComponent(filename)
     }
 
+    // MARK: - Attachments
+
+    func saveAttachmentFile(_ data: Data, filename: String) throws {
+        let file = attachmentsDir.appendingPathComponent(filename)
+        try data.write(to: file, options: .atomic)
+    }
+
+    func deleteAttachmentFile(filename: String) throws {
+        let file = attachmentsDir.appendingPathComponent(filename)
+        let fm = FileManager.default
+        if fm.fileExists(atPath: file.path) {
+            try fm.removeItem(at: file)
+        }
+    }
+
+    func attachmentURL(filename: String) -> URL {
+        attachmentsDir.appendingPathComponent(filename)
+    }
+
     // MARK: - Members
 
     func loadMembers() throws -> [HouseholdMember] {
@@ -192,7 +213,7 @@ actor Persistence {
         // Only include files that exist
         let fm2 = FileManager.default
         var args = ["-r", backupFile.path]
-        for name in ["items", "log", "vendors", "photos"] {
+        for name in ["items", "log", "vendors", "photos", "attachments"] {
             if fm2.fileExists(atPath: baseURL.appendingPathComponent(name).path) {
                 args.append(name)
             }
@@ -219,7 +240,7 @@ actor Persistence {
 
     func restore(from zipURL: URL) throws {
         let fm = FileManager.default
-        let dataDirs = ["items", "log", "vendors", "photos"]
+        let dataDirs = ["items", "log", "vendors", "photos", "attachments"]
         let dataFiles = ["config.json", "home.json", "members.json"]
 
         // 1. Unzip to temp dir to verify integrity
@@ -268,7 +289,7 @@ actor Persistence {
         try? fm.removeItem(at: safetyDir)
 
         // Re-create directories if they didn't exist in the backup
-        for dir in [itemsDir, logDir, vendorsDir, photosDir] {
+        for dir in [itemsDir, logDir, vendorsDir, photosDir, attachmentsDir] {
             if !fm.fileExists(atPath: dir.path) {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }

@@ -13,6 +13,9 @@ struct SchedulingService: Sendable {
 
     func nextDueDate(for item: MaintenanceItem) -> Date {
         switch item.scheduleKind {
+        case .idea:
+            // Ideas have no due date; far-future sentinel keeps them sorted last in "Due" mode.
+            return .distantFuture
         case .oneTime:
             return item.startDate
         case .seasonal:
@@ -29,6 +32,8 @@ struct SchedulingService: Sendable {
         guard item.isActive else { return false }
         if item.isSnoozed { return false }
         switch item.scheduleKind {
+        case .idea:
+            return false
         case .oneTime:
             if lastCompletion(for: item.id) != nil { return false }
             return item.startDate < .now
@@ -60,8 +65,8 @@ struct SchedulingService: Sendable {
     func currentStreak(for itemID: UUID) -> Int {
         guard let item = items.first(where: { $0.id == itemID }) else { return 0 }
 
-        // Streaks are meaningless for one-time items
-        if item.isOneTime { return 0 }
+        // Streaks are meaningless for one-time items and ideas
+        if item.isOneTime || item.isIdea { return 0 }
 
         // For seasonal items, count consecutive years with a completion inside the window
         if let window = item.seasonalWindow {
@@ -194,10 +199,12 @@ struct SchedulingService: Sendable {
         }
 
         let now = Date.now
-        // Before or in the window — due at window start
-        if now <= r.end { return r.start }
+        // Before the window — due at window start (countdown to opening)
+        if now < r.start { return r.start }
 
-        // Past window without completion — overdue, return end so daysUntilDue goes negative
+        // Inside or past the window — due at window end.
+        // While inside: daysUntilDue counts down to window close.
+        // When past without completion: daysUntilDue goes negative → overdue.
         return r.end
     }
 

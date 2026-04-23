@@ -38,12 +38,14 @@ enum ScheduleKind: String, Codable, CaseIterable, Sendable {
     case recurring
     case seasonal
     case oneTime
+    case idea
 
     var label: String {
         switch self {
         case .recurring: "Recurring"
         case .seasonal: "Seasonal"
         case .oneTime: "To-do"
+        case .idea: "Idea"
         }
     }
 }
@@ -61,6 +63,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var vendorID: UUID?
     var supply: Supply?
     var tags: [String]
+    var customIcon: String?
+    var attachments: [Attachment]
     var seasonalWindow: SeasonalWindow?
     var skippedYear: Int?
     var snoozedUntil: Date?
@@ -76,7 +80,9 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          frequencyInterval: Int = 1,
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
          notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
-         tags: [String] = [], seasonalWindow: SeasonalWindow? = nil,
+         tags: [String] = [], customIcon: String? = nil,
+         attachments: [Attachment] = [],
+         seasonalWindow: SeasonalWindow? = nil,
          skippedYear: Int? = nil, snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
          isActive: Bool = true,
          version: Int = 1, lastModifiedBy: UUID? = nil,
@@ -93,6 +99,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.vendorID = vendorID
         self.supply = supply
         self.tags = tags
+        self.customIcon = customIcon
+        self.attachments = attachments
         self.seasonalWindow = seasonalWindow
         self.skippedYear = skippedYear
         self.snoozedUntil = snoozedUntil
@@ -117,6 +125,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         vendorID = try container.decodeIfPresent(UUID.self, forKey: .vendorID)
         supply = try container.decodeIfPresent(Supply.self, forKey: .supply)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        customIcon = try container.decodeIfPresent(String.self, forKey: .customIcon)
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
         seasonalWindow = try container.decodeIfPresent(SeasonalWindow.self, forKey: .seasonalWindow)
         skippedYear = try container.decodeIfPresent(Int.self, forKey: .skippedYear)
         snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
@@ -144,6 +154,16 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
 
     var isSeasonal: Bool { scheduleKind == .seasonal }
     var isOneTime: Bool { scheduleKind == .oneTime }
+    var isIdea: Bool { scheduleKind == .idea }
+
+    /// The SF Symbol to display for this item. Falls back to the category's icon when no override is set,
+    /// and further falls back via `IconCatalog.resolvedSymbolName` if the chosen symbol doesn't render
+    /// on the current macOS (e.g. data saved on a newer SF Symbols release opened on an older one).
+    var effectiveIcon: String {
+        let trimmed = customIcon?.trimmingCharacters(in: .whitespaces) ?? ""
+        let preferred = trimmed.isEmpty ? category.icon : trimmed
+        return IconCatalog.resolvedSymbolName(preferred, fallback: category.icon)
+    }
 
     var frequencyDescription: String {
         switch scheduleKind {
@@ -151,6 +171,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
             return seasonalWindow?.description ?? "Seasonal"
         case .oneTime:
             return "Do by \(startDate.shortDate)"
+        case .idea:
+            return "Idea"
         case .recurring:
             if frequencyInterval == 1 {
                 return "Every \(frequencyUnit.singular)"

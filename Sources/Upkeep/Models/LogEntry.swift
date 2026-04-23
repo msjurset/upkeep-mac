@@ -11,12 +11,14 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
     var performedBy: String
     var rating: Int?
     var photoFilenames: [String]
+    var attachments: [Attachment]
     var createdAt: Date
 
     init(id: UUID = UUID(), itemID: UUID? = nil, title: String,
          category: MaintenanceCategory = .other, completedDate: Date = .now,
          notes: String = "", cost: Decimal? = nil, performedBy: String = "",
-         rating: Int? = nil, photoFilenames: [String] = [], createdAt: Date = .now) {
+         rating: Int? = nil, photoFilenames: [String] = [],
+         attachments: [Attachment] = [], createdAt: Date = .now) {
         self.id = id
         self.itemID = itemID
         self.title = title
@@ -27,6 +29,7 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
         self.performedBy = performedBy
         self.rating = rating
         self.photoFilenames = photoFilenames
+        self.attachments = attachments
         self.createdAt = createdAt
     }
 
@@ -42,6 +45,7 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
         performedBy = try container.decode(String.self, forKey: .performedBy)
         rating = try container.decodeIfPresent(Int.self, forKey: .rating)
         photoFilenames = try container.decodeIfPresent([String].self, forKey: .photoFilenames) ?? []
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 

@@ -11,7 +11,6 @@ struct ItemDetailView: View {
     @State private var isAddingTag = false
     @State private var newTagText = ""
     @State private var showAddFollowUp = false
-    @State private var expandedLogEntryID: UUID?
     @State private var followUpTitle = ""
     @State private var followUpHasDate = false
     @State private var followUpDate = Date.now
@@ -50,6 +49,15 @@ struct ItemDetailView: View {
                 // Follow-ups
                 followUpsSection
                     .padding(20)
+                Divider()
+
+                // Attachments
+                AttachmentsSection(
+                    attachments: item.attachments,
+                    onAdd: { store.addAttachmentToItem(itemID: item.id, $0) },
+                    onRemove: { store.removeAttachmentFromItem(itemID: item.id, attachmentID: $0) }
+                )
+                .padding(20)
                 Divider()
 
                 // Notes
@@ -135,7 +143,7 @@ struct ItemDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: item.category.icon)
+                Image(systemName: item.effectiveIcon)
                     .font(.title)
                     .foregroundStyle(Color.categoryColor(item.category))
 
@@ -224,6 +232,9 @@ struct ItemDetailView: View {
 
             HStack(spacing: 20) {
                 switch item.scheduleKind {
+                case .idea:
+                    scheduleCard(title: "Type", value: "Idea", icon: "lightbulb", tint: .yellow)
+                    scheduleCard(title: "Last Updated", value: item.updatedAt.shortDate, icon: "arrow.clockwise")
                 case .seasonal:
                     if let window = item.seasonalWindow {
                         scheduleCard(title: "Window", value: window.description, icon: "leaf")
@@ -268,18 +279,20 @@ struct ItemDetailView: View {
                     )
                 }
 
-                if let last = store.lastCompletion(for: item.id) {
-                    scheduleCard(
-                        title: "Last Done",
-                        value: last.completedDate.shortDate,
-                        icon: "checkmark.circle"
-                    )
-                } else if !item.isOneTime {
-                    scheduleCard(
-                        title: "Tracking Since",
-                        value: item.startDate.shortDate,
-                        icon: "calendar.badge.clock"
-                    )
+                if item.scheduleKind != .idea {
+                    if let last = store.lastCompletion(for: item.id) {
+                        scheduleCard(
+                            title: "Last Done",
+                            value: last.completedDate.shortDate,
+                            icon: "checkmark.circle"
+                        )
+                    } else if !item.isOneTime {
+                        scheduleCard(
+                            title: "Tracking Since",
+                            value: item.startDate.shortDate,
+                            icon: "calendar.badge.clock"
+                        )
+                    }
                 }
             }
         }
@@ -514,7 +527,12 @@ struct ItemDetailView: View {
                             .frame(width: 250)
                         Toggle("Set due date", isOn: $followUpHasDate)
                         if followUpHasDate {
-                            DatePicker("Due", selection: $followUpDate, displayedComponents: .date)
+                            LabeledContent("Due") {
+                                HStack(spacing: 6) {
+                                    StepperDateField(selection: $followUpDate)
+                                    CalendarPopoverButton(selection: $followUpDate)
+                                }
+                            }
                         }
                         HStack {
                             Spacer()
@@ -632,7 +650,13 @@ struct ItemDetailView: View {
                 }
             } else {
                 ForEach(entries) { entry in
-                    LogEntryRow(entry: entry, showItemName: false, expandedID: $expandedLogEntryID)
+                    Button {
+                        store.navigation = .log
+                        store.selectedLogEntryID = entry.id
+                    } label: {
+                        LogEntryRow(entry: entry, showItemName: false)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

@@ -236,7 +236,7 @@ struct QuickSearchView: View {
                     .map { item in
                         UpkeepStore.SearchResult(id: item.id, kind: .item, title: item.name,
                                                   subtitle: "\(item.category.label) ~ \(item.frequencyDescription)",
-                                                  icon: item.category.icon, tint: item.category)
+                                                  icon: item.effectiveIcon, tint: item.category)
                     }
             }
 

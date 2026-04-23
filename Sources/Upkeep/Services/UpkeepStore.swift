@@ -295,12 +295,28 @@ final class UpkeepStore {
         applyingSort(applyingSearchFilter(activeItems))
     }
 
+    /// Every item (active + inactive) with search + sort applied. Used by the "All Items" section
+    /// so deactivated items remain discoverable for reactivation.
+    var filteredAllItems: [MaintenanceItem] {
+        applyingSort(applyingSearchFilter(items))
+    }
+
     var filteredOverdueItems: [MaintenanceItem] {
         applyingSort(applyingSearchFilter(overdueItems))
     }
 
     var filteredUpcomingItems: [MaintenanceItem] {
         applyingSort(applyingSearchFilter(upcomingItems))
+    }
+
+    var filteredIdeaItems: [MaintenanceItem] {
+        // Ideas default to "recently updated" order; allow sort override but keep it sensible.
+        let filtered = applyingSearchFilter(ideaItems)
+        if sortMode == .dueSoonest {
+            // "Due" has no meaning for ideas — keep the updatedAt-desc order from ideaItems
+            return filtered
+        }
+        return applyingSort(filtered)
     }
 
     func applyingSearchFilter(_ items: [MaintenanceItem]) -> [MaintenanceItem] {
@@ -360,8 +376,14 @@ final class UpkeepStore {
 
     var upcomingItems: [MaintenanceItem] {
         activeItems
-            .filter { !isOverdue($0) }
+            .filter { !isOverdue($0) && !$0.isIdea }
             .sorted { nextDueDate(for: $0) < nextDueDate(for: $1) }
+    }
+
+    var ideaItems: [MaintenanceItem] {
+        activeItems
+            .filter(\.isIdea)
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     var recentLogEntries: [LogEntry] {
@@ -466,13 +488,15 @@ final class UpkeepStore {
                     frequencyInterval: Int = 1, frequencyUnit: FrequencyUnit = .months,
                     startDate: Date = .now, notes: String = "", vendorID: UUID? = nil,
                     supply: Supply? = nil, tags: [String] = [],
+                    customIcon: String? = nil,
                     seasonalWindow: SeasonalWindow? = nil) {
         let item = MaintenanceItem(
             name: name, category: category, priority: priority,
             scheduleKind: scheduleKind,
             frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
             startDate: startDate, notes: notes, vendorID: vendorID,
-            supply: supply, tags: tags, seasonalWindow: seasonalWindow
+            supply: supply, tags: tags, customIcon: customIcon,
+            seasonalWindow: seasonalWindow
         )
         registerUndo("Add Item") { store in store.deleteItem(id: item.id) }
         Task {
@@ -655,11 +679,116 @@ final class UpkeepStore {
         }
     }
 
+    // MARK: - Attachments
+
+    /// Imports a file into the shared attachments/ directory and returns a photo/pdf Attachment.
+    /// Throws if copy fails.
+    func importAttachmentFile(sourceURL: URL, kind: Attachment.Kind) async throws -> Attachment {
+        precondition(kind == .photo || kind == .pdf, "importAttachmentFile only handles copied kinds")
+        let ext = sourceURL.pathExtension
+        let id = UUID()
+        let filename = ext.isEmpty ? id.uuidString : "\(id.uuidString).\(ext)"
+        let data = try Data(contentsOf: sourceURL)
+        try await persistence.saveAttachmentFile(data, filename: filename)
+        return Attachment(
+            id: id, kind: kind,
+            title: sourceURL.lastPathComponent,
+            filename: filename,
+            addedAt: .now,
+            sizeBytes: Int64(data.count)
+        )
+    }
+
+    func addAttachmentToItem(itemID: UUID, _ attachment: Attachment) {
+        guard var item = items.first(where: { $0.id == itemID }) else { return }
+        let prev = item
+        item.attachments.append(attachment)
+        item.touch(by: currentMemberID)
+        registerUndo("Add Attachment") { store in store.updateItem(prev, actionName: "Remove Attachment") }
+        Task {
+            do {
+                try await persistence.saveItem(item)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func removeAttachmentFromItem(itemID: UUID, attachmentID: UUID) {
+        guard var item = items.first(where: { $0.id == itemID }),
+              let attachment = item.attachments.first(where: { $0.id == attachmentID }) else { return }
+        let prev = item
+        item.attachments.removeAll { $0.id == attachmentID }
+        item.touch(by: currentMemberID)
+        registerUndo("Remove Attachment") { store in store.updateItem(prev, actionName: "Add Attachment") }
+        Task {
+            do {
+                try await persistence.saveItem(item)
+                if let fn = attachment.filename, attachment.isFileBacked {
+                    try? await persistence.deleteAttachmentFile(filename: fn)
+                }
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func addAttachmentToLog(entryID: UUID, _ attachment: Attachment) {
+        guard var entry = logEntries.first(where: { $0.id == entryID }) else { return }
+        let prev = entry
+        entry.attachments.append(attachment)
+        registerUndo("Add Attachment") { store in store.updateLogEntry(prev, actionName: "Remove Attachment") }
+        Task {
+            do {
+                try await persistence.saveLogEntry(entry)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func removeAttachmentFromLog(entryID: UUID, attachmentID: UUID) {
+        guard var entry = logEntries.first(where: { $0.id == entryID }),
+              let attachment = entry.attachments.first(where: { $0.id == attachmentID }) else { return }
+        let prev = entry
+        entry.attachments.removeAll { $0.id == attachmentID }
+        registerUndo("Remove Attachment") { store in store.updateLogEntry(prev, actionName: "Add Attachment") }
+        Task {
+            do {
+                try await persistence.saveLogEntry(entry)
+                if let fn = attachment.filename, attachment.isFileBacked {
+                    try? await persistence.deleteAttachmentFile(filename: fn)
+                }
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func attachmentURL(_ attachment: Attachment) -> URL? {
+        switch attachment.kind {
+        case .photo, .pdf:
+            guard let fn = attachment.filename else { return nil }
+            return persistence.attachmentsDir.appendingPathComponent(fn)
+        case .pdfLink:
+            guard let p = attachment.path else { return nil }
+            return URL(fileURLWithPath: p)
+        case .link:
+            guard let s = attachment.url else { return nil }
+            return URL(string: s)
+        }
+    }
+
     // MARK: - Log Entry CRUD
 
     func logCompletion(itemID: UUID?, title: String, category: MaintenanceCategory = .other,
                        date: Date = .now, notes: String = "", cost: Decimal? = nil,
-                       performedBy: String = "", rating: Int? = nil) {
+                       performedBy: String = "", rating: Int? = nil,
+                       markComplete: Bool = true) {
         let entry = LogEntry(
             itemID: itemID, title: title, category: category,
             completedDate: date, notes: notes, cost: cost, performedBy: performedBy,
@@ -679,7 +808,7 @@ final class UpkeepStore {
                 modified = true
             }
 
-            if item.isOneTime && item.isActive && config.autoDeactivateCompletedTodos {
+            if markComplete && item.isOneTime && item.isActive && config.autoDeactivateCompletedTodos {
                 item.isActive = false
                 modified = true
             }
@@ -962,7 +1091,7 @@ final class UpkeepStore {
             || item.followUps.contains(where: { $0.title.lowercased().contains(q) }) {
             results.append(SearchResult(id: item.id, kind: .item, title: item.name,
                                         subtitle: "\(item.category.label) ~ \(item.frequencyDescription)",
-                                        icon: item.category.icon, tint: item.category))
+                                        icon: item.effectiveIcon, tint: item.category))
         }
 
         for entry in logEntries where entry.title.lowercased().contains(q) || entry.notes.lowercased().contains(q) {

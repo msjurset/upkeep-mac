@@ -22,6 +22,8 @@ struct ItemEditorSheet: View {
     @State private var productURL = ""
     @State private var unitCostString = ""
     @State private var tagsString = ""
+    @State private var customIcon: String?
+    @State private var showIconPicker = false
     @State private var windowStartMonth = 6
     @State private var windowStartDay = 1
     @State private var windowEndMonth = 7
@@ -38,7 +40,27 @@ struct ItemEditorSheet: View {
             onSave: save
         ) {
                 Section("Details") {
-                    LeadingTextField(label: "Name", text: $name)
+                    HStack(alignment: .bottom, spacing: 10) {
+                        Button {
+                            showIconPicker = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Icon")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: customIcon ?? category.icon)
+                                    .font(.title3)
+                                    .foregroundStyle(.upkeepAmber)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.upkeepAmber.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help("Choose an icon")
+
+                        LeadingTextField(label: "Name", text: $name)
+                    }
 
                     Picker("Category", selection: $category) {
                         ForEach(MaintenanceCategory.allCases) { cat in
@@ -60,6 +82,7 @@ struct ItemEditorSheet: View {
                         Text("Recurring").tag(ScheduleKind.recurring)
                         Text("Seasonal").tag(ScheduleKind.seasonal)
                         Text("To-do").tag(ScheduleKind.oneTime)
+                        Text("Idea").tag(ScheduleKind.idea)
                     }
                     .pickerStyle(.segmented)
 
@@ -107,15 +130,18 @@ struct ItemEditorSheet: View {
                             .labelsHidden()
                             .frame(width: 100)
                         }
-                    case .oneTime:
+                    case .oneTime, .idea:
                         EmptyView()
                     }
 
-                    DatePicker(
-                        scheduleKind == .oneTime ? "Do by" : "Start tracking from",
-                        selection: $startDate,
-                        displayedComponents: .date
-                    )
+                    if scheduleKind != .idea {
+                        LabeledContent(scheduleKind == .oneTime ? "Do by" : "Start tracking from") {
+                            HStack(spacing: 6) {
+                                StepperDateField(selection: $startDate)
+                                CalendarPopoverButton(selection: $startDate)
+                            }
+                        }
+                    }
                 }
 
                 Section("Vendor") {
@@ -159,6 +185,9 @@ struct ItemEditorSheet: View {
                 }
         }
         .frame(width: 480, height: 640)
+        .sheet(isPresented: $showIconPicker) {
+            IconPicker(selection: $customIcon, fallbackIcon: category.icon, fallbackLabel: category.label)
+        }
         .onAppear {
             if let item {
                 name = item.name
@@ -171,6 +200,7 @@ struct ItemEditorSheet: View {
                 notes = item.notes
                 selectedVendorID = item.vendorID
                 tagsString = item.tags.joined(separator: ", ")
+                customIcon = item.customIcon
                 isActive = item.isActive
                 if let window = item.seasonalWindow {
                     windowStartMonth = window.startMonth
@@ -237,6 +267,7 @@ struct ItemEditorSheet: View {
             existing.vendorID = selectedVendorID
             existing.supply = currentSupply
             existing.tags = parsedTags
+            existing.customIcon = customIcon
             existing.isActive = isActive
             store.updateItem(existing)
         } else {
@@ -246,6 +277,7 @@ struct ItemEditorSheet: View {
                 frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
                 startDate: startDate, notes: notes, vendorID: selectedVendorID,
                 supply: currentSupply, tags: parsedTags,
+                customIcon: customIcon,
                 seasonalWindow: currentSeasonalWindow
             )
         }

@@ -6,8 +6,11 @@ struct ItemListView: View {
     let title: String
     @Binding var showNewItemSheet: Bool
 
-    @FocusState private var searchFocused: Bool
     @State private var bulkSelection: Set<UUID> = []
+    @State private var tagMatches: [String] = []
+    @State private var tagActiveIndex: Int = -1
+    @State private var tagJustAccepted = false
+    @State private var isNavigating = false
 
     var body: some View {
         @Bindable var store = store
@@ -16,13 +19,18 @@ struct ItemListView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search items... (tag: to filter)", text: $store.searchQuery)
-                    .textFieldStyle(.plain)
-                    .focused($searchFocused)
-                    .onSubmit { /* already filters live */ }
+                TagAwareSearchField(
+                    query: $store.searchQuery,
+                    placeholder: "Search items... (tag: to filter)",
+                    hasSuggestions: { !tagMatches.isEmpty },
+                    onNavigate: { navigate($0) },
+                    onAccept: { handleEnter() }
+                )
                 if !store.searchQuery.isEmpty {
                     Button {
                         store.searchQuery = ""
+                        tagMatches = []
+                        tagActiveIndex = -1
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.tertiary)
@@ -33,6 +41,33 @@ struct ItemListView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(.bar)
+
+            // Tag suggestions dropdown
+            if !tagMatches.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(tagMatches.enumerated()), id: \.element) { idx, tag in
+                        Button {
+                            completeTag(tag)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "tag")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("tag:\(tag)")
+                                    .font(.callout)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(idx == tagActiveIndex ? Color.accentColor.opacity(0.2) : .clear)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+                .background(.bar)
+            }
 
             Divider()
 
@@ -152,7 +187,87 @@ struct ItemListView: View {
                 ) { showNewItemSheet = true }
             }
         }
+        .background(TagSuggestionMonitor(
+            hasSuggestions: { !tagMatches.isEmpty },
+            onNavigate: { navigate($0) }
+        ))
+        .onChange(of: store.searchQuery) { _, _ in
+            if isNavigating { isNavigating = false; return }
+            tagJustAccepted = false
+            updateTagSuggestions()
+        }
         .navigationTitle(title)
+    }
+
+    // MARK: - Tag Suggestions
+
+    private func updateTagSuggestions() {
+        tagActiveIndex = -1
+        let query = store.searchQuery
+        guard let match = query.range(of: #"(?:^|\s)tag:(\S*)$"#, options: .regularExpression) else {
+            tagMatches = []
+            return
+        }
+        let token = query[match]
+        guard let colonIdx = token.firstIndex(of: ":") else {
+            tagMatches = []
+            return
+        }
+        let partial = String(token[token.index(after: colonIdx)...]).lowercased()
+        let existing = Set(query.matches(of: /tag:(\S+)/).compactMap { String($0.output.1).lowercased() })
+
+        tagMatches = store.allTags
+            .filter { tag in
+                let lower = tag.lowercased()
+                return (partial.isEmpty || lower.contains(partial)) && !existing.contains(lower)
+            }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    private func navigate(_ direction: TagNavDirection) {
+        guard !tagMatches.isEmpty else { return }
+        switch direction {
+        case .down:
+            tagActiveIndex = tagActiveIndex < 0 ? 0 : min(tagActiveIndex + 1, tagMatches.count - 1)
+            previewTag(tagMatches[tagActiveIndex])
+        case .up:
+            tagActiveIndex = max(tagActiveIndex - 1, 0)
+            previewTag(tagMatches[tagActiveIndex])
+        case .escape:
+            tagMatches = []
+            tagActiveIndex = -1
+        }
+    }
+
+    private func handleEnter() {
+        if !tagMatches.isEmpty {
+            let idx = tagActiveIndex >= 0 ? tagActiveIndex : 0
+            if idx < tagMatches.count { completeTag(tagMatches[idx]) }
+            tagJustAccepted = true
+            return
+        }
+        // Second Enter (no suggestions) — nothing to submit; live filter is already applied.
+        tagJustAccepted = false
+    }
+
+    private func previewTag(_ name: String) {
+        let query = store.searchQuery
+        guard let range = query.range(of: #"(?:^|\s)tag:\S*$"#, options: .regularExpression) else { return }
+        let before = query[query.startIndex..<range.lowerBound]
+        let prefix = query[range].hasPrefix(" ") ? " " : ""
+        isNavigating = true
+        store.searchQuery = "\(before)\(prefix)tag:\(name)"
+    }
+
+    private func completeTag(_ name: String) {
+        let query = store.searchQuery
+        guard let range = query.range(of: #"(?:^|\s)tag:\S*$"#, options: .regularExpression) else { return }
+        let before = query[query.startIndex..<range.lowerBound]
+        let prefix = query[range].hasPrefix(" ") ? " " : ""
+        store.searchQuery = "\(before)\(prefix)tag:\(name) "
+        tagMatches = []
+        tagActiveIndex = -1
     }
 }
 
@@ -164,16 +279,28 @@ struct ItemRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: item.category.icon)
+            Image(systemName: item.effectiveIcon)
                 .font(.title3)
                 .foregroundStyle(Color.categoryColor(item.category))
                 .frame(width: 28)
                 .help(item.category.label)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name)
-                    .font(.body.weight(.medium))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(item.name)
+                        .font(.body.weight(.medium))
+                        .strikethrough(!item.isActive)
+                        .lineLimit(1)
+                    if !item.isActive {
+                        Text("Archived")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.secondary.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
 
                 HStack(spacing: 6) {
                     Text(item.frequencyDescription)
@@ -205,12 +332,18 @@ struct ItemRow: View {
                 PriorityBadge(priority: item.priority)
                     .frame(width: 14)
 
-                let days = store.daysUntilDue(item)
-                DueDateBadge(daysUntilDue: days)
-                    .frame(width: 100, alignment: .trailing)
-                    .help("Due \(store.nextDueDate(for: item).shortDate)")
+                if item.isIdea {
+                    // Ideas have no due date — keep column width consistent so kind icons still align.
+                    Color.clear.frame(width: 100, height: 1)
+                } else {
+                    let days = store.daysUntilDue(item)
+                    DueDateBadge(daysUntilDue: days)
+                        .frame(width: 100, alignment: .trailing)
+                        .help("Due \(store.nextDueDate(for: item).shortDate)")
+                }
             }
         }
         .padding(.vertical, 2)
+        .opacity(item.isActive ? 1.0 : 0.55)
     }
 }
