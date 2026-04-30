@@ -163,7 +163,7 @@ struct ItemEditorSheet: View {
                         LeadingTextField(label: "Purchase link", text: $productURL, prompt: "https://amazon.com/...")
                         VStack(alignment: .leading, spacing: 2) {
                             LeadingTextField(label: "Unit cost", text: $unitCostString, prompt: "Optional")
-                            if !unitCostString.isEmpty && Decimal(string: unitCostString) == nil {
+                            if unitCostString.count > 1 && Decimal.fromCurrencyInput(unitCostString) == nil {
                                 Text("Enter a valid number")
                                     .font(.caption2)
                                     .foregroundStyle(.red)
@@ -229,7 +229,7 @@ struct ItemEditorSheet: View {
             quantityPerUse: quantityPerUse,
             productName: productName,
             productURL: productURL,
-            unitCost: Decimal(string: unitCostString)
+            unitCost: Decimal.fromCurrencyInput(unitCostString)
         )
     }
 

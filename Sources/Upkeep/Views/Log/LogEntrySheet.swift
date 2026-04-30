@@ -81,7 +81,7 @@ struct LogEntrySheet: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         LeadingTextField(label: "Cost", text: $costString, prompt: "Optional")
-                        if !costString.isEmpty && Decimal(string: costString) == nil {
+                        if costString.count > 1 && Decimal.fromCurrencyInput(costString) == nil {
                             Text("Enter a valid number")
                                 .font(.caption2)
                                 .foregroundStyle(.red)
@@ -134,7 +134,7 @@ struct LogEntrySheet: View {
 
     private func save() {
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
-        let cost = Decimal(string: costString)
+        let cost = Decimal.fromCurrencyInput(costString)
         let resolvedItemID = itemID ?? selectedItemID
         let ratingValue = rating > 0 ? rating : nil
 
