@@ -21,14 +21,16 @@ struct LogView: View {
             List(selection: $store.selectedLogEntryID) {
                 ForEach(grouped, id: \.key) { month, entries in
                     Section(month) {
-                        ForEach(entries) { entry in
+                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                             LogEntryRow(entry: entry, showItemName: true)
                                 .tag(entry.id)
+                                .listRowBackground(index.isMultiple(of: 2) ? Color.clear : Color.alternatingRow)
+                                .listRowSeparator(.hidden)
                         }
                     }
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .listStyle(.inset)
             .overlay {
                 if store.logEntries.isEmpty {
                     EmptyListOverlay(

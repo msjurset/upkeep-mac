@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var showNewItemSheet = false
     @State private var showNewLogEntrySheet = false
     @State private var showNewVendorSheet = false
+    @State private var showNewSourcingSheet = false
     @State private var showQuickSearch = false
     @State private var toastMessage: String?
     @State private var toastUndoAction: (() -> Void)?
@@ -24,12 +25,34 @@ struct ContentView: View {
                 ContentListView(
                     showNewItemSheet: $showNewItemSheet,
                     showNewLogEntrySheet: $showNewLogEntrySheet,
-                    showNewVendorSheet: $showNewVendorSheet
+                    showNewVendorSheet: $showNewVendorSheet,
+                    showNewSourcingSheet: $showNewSourcingSheet
                 )
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 500)
             }
         } detail: {
             DetailView()
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
+                    store.goBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(!store.canGoBack)
+                .keyboardShortcut("[", modifiers: .command)
+                .help("Back")
+
+                Button {
+                    store.goForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(!store.canGoForward)
+                .keyboardShortcut("]", modifiers: .command)
+                .help("Forward")
+            }
         }
         .onAppear {
             store.undoManager = undoManager
@@ -39,6 +62,9 @@ struct ContentView: View {
             store.undoManager = newValue
         }
         .onChange(of: store.navigation) { oldVal, newVal in
+            // Skip the auto-clearing when restoring a navigation snapshot — back/forward
+            // need to preserve the recorded selection state.
+            if store.isApplyingHistory { return }
             let oldSection = sidebarSection(oldVal)
             let newSection = sidebarSection(newVal)
             if oldSection != newSection {
@@ -46,7 +72,10 @@ struct ContentView: View {
                     store.selectedItemID = nil
                     store.searchQuery = ""
                 }
-                if newSection != "vendors" { store.selectedVendorID = nil }
+                if newSection != "vendors" {
+                    store.selectedVendorID = nil
+                    store.selectedSourcingID = nil
+                }
                 if newSection != "log" { store.selectedLogEntryID = nil }
                 columnVisibility = .all
             }
@@ -59,6 +88,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showNewVendorSheet) {
             VendorEditorSheet(vendor: nil)
+        }
+        .sheet(isPresented: $showNewSourcingSheet) {
+            SourcingEditorSheet(sourcing: nil)
         }
         .sheet(isPresented: $showQuickSearch) {
             QuickSearchView()
@@ -138,6 +170,7 @@ struct ContentListView: View {
     @Binding var showNewItemSheet: Bool
     @Binding var showNewLogEntrySheet: Bool
     @Binding var showNewVendorSheet: Bool
+    @Binding var showNewSourcingSheet: Bool
 
     var body: some View {
         switch store.navigation {
@@ -157,8 +190,11 @@ struct ContentListView: View {
             LogView(showNewLogEntrySheet: $showNewLogEntrySheet)
                 .accessibilityIdentifier("list.log")
         case .vendors, .vendorDetail:
-            VendorListView(showNewVendorSheet: $showNewVendorSheet)
-                .accessibilityIdentifier("list.vendors")
+            VendorsContainerView(
+                showNewVendorSheet: $showNewVendorSheet,
+                showNewSourcingSheet: $showNewSourcingSheet
+            )
+            .accessibilityIdentifier("list.vendors")
         default:
             Text("Select a section")
                 .foregroundStyle(.secondary)
@@ -193,12 +229,23 @@ struct DetailView: View {
                     .accessibilityIdentifier("detail.empty.log")
             }
         case .vendors, .vendorDetail:
-            if let vendor = store.selectedVendor {
-                VendorDetailView(vendor: vendor)
-                    .accessibilityIdentifier("detail.vendor")
-            } else {
-                EmptyDetailView(icon: "person.2", message: "Select a vendor to view details")
-                    .accessibilityIdentifier("detail.empty.vendor")
+            switch store.vendorsTab {
+            case .vendors:
+                if let vendor = store.selectedVendor {
+                    VendorDetailView(vendor: vendor)
+                        .accessibilityIdentifier("detail.vendor")
+                } else {
+                    EmptyDetailView(icon: "person.2", message: "Select a vendor to view details")
+                        .accessibilityIdentifier("detail.empty.vendor")
+                }
+            case .sourcings:
+                if let sourcing = store.selectedSourcing {
+                    SourcingDetailView(sourcing: sourcing)
+                        .accessibilityIdentifier("detail.sourcing")
+                } else {
+                    EmptyDetailView(icon: "magnifyingglass", message: "Select a sourcing to view details")
+                        .accessibilityIdentifier("detail.empty.sourcing")
+                }
             }
         case .homeProfile:
             HomeProfileView()

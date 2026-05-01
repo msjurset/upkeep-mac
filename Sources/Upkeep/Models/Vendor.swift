@@ -19,6 +19,8 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
     var tags: [String]
     var accountManager: AccountManager
     var notes: String
+    var source: String
+    var isActive: Bool
     var version: Int
     var lastModifiedBy: UUID?
     var createdAt: Date
@@ -28,7 +30,8 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
          email: String = "", website: String = "", location: String = "",
          specialty: String = "", tags: [String] = [],
          accountManager: AccountManager = AccountManager(),
-         notes: String = "", version: Int = 1,
+         notes: String = "", source: String = "", isActive: Bool = true,
+         version: Int = 1,
          lastModifiedBy: UUID? = nil, createdAt: Date = .now, updatedAt: Date = .now) {
         self.id = id
         self.name = name
@@ -40,6 +43,8 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         self.tags = tags
         self.accountManager = accountManager
         self.notes = notes
+        self.source = source
+        self.isActive = isActive
         self.version = version
         self.lastModifiedBy = lastModifiedBy
         self.createdAt = createdAt
@@ -58,6 +63,8 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         accountManager = try container.decodeIfPresent(AccountManager.self, forKey: .accountManager) ?? AccountManager()
         notes = try container.decode(String.self, forKey: .notes)
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
+        isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
         lastModifiedBy = try container.decodeIfPresent(UUID.self, forKey: .lastModifiedBy)
         createdAt = try container.decode(Date.self, forKey: .createdAt)

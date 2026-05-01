@@ -280,6 +280,31 @@ func addButton(action: @escaping @MainActor () -> Void) -> AddCircleButton {
     AddCircleButton(action: action)
 }
 
+// MARK: - List zebra striping
+
+extension Color {
+    /// The alternate row color for List rows. Apply via `.listRowBackground(...)` keyed
+    /// on the row's index so striping stops at the last content row instead of bleeding
+    /// into the empty area below.
+    static var alternatingRow: Color {
+        Color(NSColor.alternatingContentBackgroundColors[1])
+    }
+}
+
+// MARK: - Pointing-hand cursor on hover
+
+extension View {
+    /// Shows the pointing-hand cursor while the pointer is over this view.
+    /// Use on tappable elements that don't already get cursor feedback (plain-style buttons,
+    /// custom rows acting as links).
+    func pointerCursor() -> some View {
+        onHover { inside in
+            if inside { NSCursor.pointingHand.push() }
+            else { NSCursor.pop() }
+        }
+    }
+}
+
 // MARK: - Rating Picker
 
 struct RatingPicker: View {

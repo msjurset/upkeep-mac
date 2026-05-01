@@ -121,6 +121,7 @@ struct VendorDetailView: View {
 
                         ForEach(linkedItems) { item in
                             Button {
+                                store.recordHistory()
                                 store.navigation = .inventoryAll
                                 store.selectedItemID = item.id
                             } label: {

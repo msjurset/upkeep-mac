@@ -96,9 +96,11 @@ struct ItemListView: View {
             .padding(.bottom, 0)
 
             List(selection: $bulkSelection) {
-                ForEach(items) { item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     ItemRow(item: item)
                         .tag(item.id)
+                        .listRowBackground(index.isMultiple(of: 2) ? Color.clear : Color.alternatingRow)
+                        .listRowSeparator(.hidden)
                         .contextMenu {
                             Button("Log Completion") {
                                 store.logCompletion(
@@ -120,13 +122,36 @@ struct ItemListView: View {
                                 store.updateItem(updated, actionName: item.isActive ? "Deactivate" : "Activate")
                             }
                             Divider()
+                            if item.vendorID == nil {
+                                Button("Find a Vendor…") {
+                                    store.recordHistory()
+                                    store.createSourcing(
+                                        title: "Vendor for \(item.name)",
+                                        linkedItemIDs: [item.id]
+                                    )
+                                    store.navigation = .vendors
+                                    store.vendorsTab = .sourcings
+                                }
+                            } else {
+                                Button("Replace Vendor…") {
+                                    store.recordHistory()
+                                    store.createSourcing(
+                                        title: "Replace vendor for \(item.name)",
+                                        linkedItemIDs: [item.id],
+                                        replacingVendorID: item.vendorID
+                                    )
+                                    store.navigation = .vendors
+                                    store.vendorsTab = .sourcings
+                                }
+                            }
+                            Divider()
                             Button("Delete", role: .destructive) {
                                 store.deleteItem(id: item.id)
                             }
                         }
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
+            .listStyle(.inset)
             .onChange(of: bulkSelection) {
                 // Single selection → navigate to detail
                 if bulkSelection.count == 1 {
@@ -278,7 +303,7 @@ struct ItemRow: View {
     let item: MaintenanceItem
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: item.effectiveIcon)
                 .font(.title3)
                 .foregroundStyle(Color.categoryColor(item.category))
@@ -302,10 +327,11 @@ struct ItemRow: View {
                     }
                 }
 
-                HStack(spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
                     Text(item.frequencyDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
 
                     if let vendor = store.vendor(for: item) {
                         Text("~")

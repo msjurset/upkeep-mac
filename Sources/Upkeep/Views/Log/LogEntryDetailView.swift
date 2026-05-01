@@ -78,6 +78,7 @@ struct LogEntryDetailView: View {
                             }
 
                             Button {
+                                store.recordHistory()
                                 store.navigation = .inventoryAll
                                 store.selectedItemID = item.id
                             } label: {

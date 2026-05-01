@@ -74,9 +74,48 @@ actor NotificationService {
         await scheduleOverdueReminder(itemID: item.id, itemName: item.name, dueDate: nextDueDate)
     }
 
+    // MARK: - Sourcing
+
+    func scheduleSourcingReminder(sourcingID: UUID, title: String, decideBy: Date, daysBefore: Int) async {
+        guard let reminderDate = Calendar.current.date(byAdding: .day, value: -daysBefore, to: decideBy),
+              reminderDate > .now else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Sourcing Decision Approaching"
+        content.body = "\(title) — decide by \(decideBy.shortDate)."
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour], from: reminderDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+
+        let id = sourcingReminderID(sourcingID: sourcingID)
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    func cancelSourcingReminder(sourcingID: UUID) async {
+        let id = sourcingReminderID(sourcingID: sourcingID)
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
+    func syncSourcingReminder(sourcing: Sourcing, daysBefore: Int) async {
+        await cancelSourcingReminder(sourcingID: sourcing.id)
+        guard sourcing.isOpen, let decideBy = sourcing.decideBy else { return }
+        await scheduleSourcingReminder(
+            sourcingID: sourcing.id,
+            title: sourcing.title,
+            decideBy: decideBy,
+            daysBefore: daysBefore
+        )
+    }
+
     // MARK: - Identifiers
 
     private func reminderID(itemID: UUID, suffix: String) -> String {
         "upkeep-\(itemID.uuidString)-\(suffix)"
+    }
+
+    private func sourcingReminderID(sourcingID: UUID) -> String {
+        "upkeep-sourcing-\(sourcingID.uuidString)"
     }
 }

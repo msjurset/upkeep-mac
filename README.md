@@ -36,7 +36,21 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 - Contact info: phone, email, website, location (Google Maps Plus Codes, coordinates, DMS, or URLs)
 - Account manager tracking (name, phone, email)
 - Tags for filtering and categorization
-- Context menu with copy phone/email
+- Active/inactive flag with "Show inactive" toggle in the list
+- `source` field — how you got connected to this vendor (referral, Nextdoor, Google, etc.)
+- Import from system Contacts via "Pick from Contacts…" (no permission required for picker)
+- Context menu: copy phone/email, mark active/inactive, find a replacement…
+
+**Vendor Sourcing**
+- First-class entity for tracking bid collection and vendor replacement
+- Standalone or linked to one or more maintenance items
+- Each sourcing has candidates with name, phone, email, source, status, quote amount, notes, and bid attachments
+- Import candidates from system Contacts
+- "Decide by" deadline with system notification reminder
+- Hire flow promotes the winner to an active Vendor; quoted losers become inactive Vendors automatically
+- Replace flow cascades — hiring reassigns every item currently using the replaced vendor to the winner
+- Cancel flow preserves the candidate snapshot with a reason
+- Surfaced in the Vendors area as a tab next to Vendors, plus an "Active Sourcing" dashboard section
 
 **Home Profile**
 - Property details: address, year built, square footage
@@ -46,7 +60,8 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 **Other**
 - Tag auto-suggest with full keyboard navigation (Tab, Arrow, Enter, Escape)
 - Quick search across items, logs, vendors, follow-ups, and supply product names
-- Keyboard shortcuts: Cmd-N (new item), Cmd-Shift-N (new log), Cmd-K/F (search)
+- Keyboard shortcuts: Cmd-N (new item), Cmd-Shift-N (new log), Cmd-K/F (search), Cmd-[ / Cmd-] (back/forward through drill-downs)
+- Back/forward navigation buttons in the toolbar — history of cross-section drill-downs (item ↔ vendor ↔ sourcing ↔ log)
 - Undo/redo for all operations
 - Sparkle auto-updates
 - Multi-user support with household members and conflict detection
@@ -83,14 +98,14 @@ make deploy              # build, bundle, install to /Applications
 
 Storage is split between shared and local directories:
 
-- **Shared data** (configurable via Settings): items, logs, vendors, photos, home profile, household members. Can be pointed at a synced folder (e.g. Google Drive) for household sharing.
+- **Shared data** (configurable via Settings): items, logs, vendors, sourcings, photos, home profile, household members. Can be pointed at a synced folder (e.g. Google Drive) for household sharing.
 - **Local data** (`~/.upkeep/`): backups. Never synced.
 - **Instance config** (`~/Library/Application Support/Upkeep/`): current member, data path, UI prefs.
 
 ### Setting up shared storage
 
 1. Create a folder in your sync service (e.g. Google Drive)
-2. Copy data: `cp -R ~/.upkeep/{items,log,vendors,photos,config.json,home.json,members.json} "/path/to/sync/folder/"`
+2. Copy data: `cp -R ~/.upkeep/{items,log,vendors,searches,photos,config.json,home.json,members.json} "/path/to/sync/folder/"`
 3. In Upkeep, go to Settings > Data Location > Change... and select the folder
 4. On other machines, install Upkeep and point it at the same shared folder
 

@@ -38,6 +38,14 @@ struct VendorEditorSheet: View {
                     LeadingTextField(label: "Email", text: $email)
                     LeadingTextField(label: "Website", text: $website)
                     LeadingTextField(label: "Location", text: $location, prompt: "Google Maps link or Plus Code URL")
+                    HStack {
+                        Spacer()
+                        ContactsImportButton { selection in
+                            if name.isEmpty { name = selection.name }
+                            if phone.isEmpty { phone = selection.phone }
+                            if email.isEmpty { email = selection.email }
+                        }
+                    }
                 }
 
                 Section("Account Manager") {

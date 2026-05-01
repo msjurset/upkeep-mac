@@ -56,6 +56,9 @@ struct DashboardView: View {
                     if !store.pendingFollowUps.isEmpty {
                         followUpsSection
                     }
+                    if !store.activeSourcings.isEmpty {
+                        activeSourcingsSection
+                    }
                     if !store.overdueItems.isEmpty {
                         overdueSection
                     }
@@ -216,6 +219,7 @@ struct DashboardView: View {
             ForEach(store.lowStockItems) { item in
                 if let supply = item.supply {
                     Button {
+                        store.recordHistory()
                         store.navigation = .inventoryAll
                         store.selectedItemID = item.id
                     } label: {
@@ -278,29 +282,106 @@ struct DashboardView: View {
                                 .foregroundStyle(followUp.isOverdue ? .upkeepRed : .secondary)
                         }
                         .buttonStyle(.plain)
+                        .help("Mark complete")
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(followUp.title)
-                                .font(.body)
-                                .lineLimit(1)
-                            HStack(spacing: 4) {
-                                Text(item.name)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if let due = followUp.dueDate {
-                                    Text("~ \(due.shortDate)")
-                                        .font(.caption)
-                                        .foregroundStyle(followUp.isOverdue ? .upkeepRed : .secondary)
+                        Button {
+                            store.recordHistory()
+                            store.navigation = .inventoryAll
+                            store.selectedItemID = item.id
+                        } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(followUp.title)
+                                        .font(.body)
+                                        .lineLimit(1)
+                                    HStack(spacing: 4) {
+                                        Text(item.name)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        if let due = followUp.dueDate {
+                                            Text("~ \(due.shortDate)")
+                                                .font(.caption)
+                                                .foregroundStyle(followUp.isOverdue ? .upkeepRed : .secondary)
+                                        }
+                                    }
                                 }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
                             }
+                            .contentShape(Rectangle())
                         }
-
-                        Spacer()
+                        .buttonStyle(.plain)
+                        .pointerCursor()
+                        .help("Open \(item.name)")
                     }
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 8).fill(.background))
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
                 }
+            }
+        }
+    }
+
+    // MARK: - Active Sourcings
+
+    private var activeSourcingsSection: some View {
+        sectionView(title: "Active Sourcing", icon: "magnifyingglass.circle.fill", tint: .upkeepAmber) {
+            ForEach(store.activeSourcings.sorted { a, b in
+                switch (a.decideBy, b.decideBy) {
+                case let (lhs?, rhs?): return lhs < rhs
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return a.updatedAt > b.updatedAt
+                }
+            }) { sourcing in
+                Button {
+                    store.recordHistory()
+                    store.navigation = .vendors
+                    store.vendorsTab = .sourcings
+                    store.selectedSourcingID = sourcing.id
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass.circle.fill")
+                            .font(.body)
+                            .foregroundStyle(.upkeepAmber)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(sourcing.title)
+                                    .font(.body.weight(.medium))
+                                    .lineLimit(1)
+                                if sourcing.daysSinceLastActivity >= 30 {
+                                    Text("Stale")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(Capsule().fill(.orange.opacity(0.2)))
+                                }
+                            }
+                            HStack(spacing: 6) {
+                                Text("\(sourcing.candidates.count) candidate\(sourcing.candidates.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let decideBy = sourcing.decideBy {
+                                    Text("Decide by \(decideBy.shortDate)")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(.background))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
             }
         }
     }
@@ -312,6 +393,7 @@ struct DashboardView: View {
             ForEach(store.overdueItems.prefix(5)) { item in
                 HStack(spacing: 10) {
                     Button {
+                        store.recordHistory()
                         store.navigation = .inventoryAll
                         store.selectedItemID = item.id
                     } label: {
@@ -414,6 +496,7 @@ struct DashboardView: View {
                                     VStack(spacing: 3) {
                                         ForEach(week.items) { item in
                                             Button {
+                                                store.recordHistory()
                                                 store.navigation = .inventoryAll
                                                 store.selectedItemID = item.id
                                             } label: {
@@ -477,6 +560,7 @@ struct DashboardView: View {
                     VStack(spacing: 1) {
                         ForEach(suggestions) { item in
                             Button {
+                                store.recordHistory()
                                 store.navigation = .inventoryAll
                                 store.selectedItemID = item.id
                             } label: {

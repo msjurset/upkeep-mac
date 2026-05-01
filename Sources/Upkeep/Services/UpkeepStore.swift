@@ -28,6 +28,7 @@ final class UpkeepStore {
     var items: [MaintenanceItem] = []
     var logEntries: [LogEntry] = []
     var vendors: [Vendor] = []
+    var sourcings: [Sourcing] = []
     var members: [HouseholdMember] = []
     var config: AppConfig = AppConfig()
     var sortMode: SortMode = .dueSoonest
@@ -40,9 +41,41 @@ final class UpkeepStore {
             }
         }
     }
+    enum VendorsTab: String, CaseIterable, Sendable {
+        case vendors
+        case sourcings
+
+        var label: String {
+            switch self {
+            case .vendors: "Vendors"
+            case .sourcings: "Sourcing"
+            }
+        }
+    }
+
+    /// Snapshot of the user-visible navigation state. Used by the back/forward stack
+    /// to restore prior drill-downs across views.
+    struct NavigationSnapshot: Equatable, Sendable {
+        let navigation: NavigationItem?
+        let vendorsTab: VendorsTab
+        let selectedItemID: UUID?
+        let selectedVendorID: UUID?
+        let selectedLogEntryID: UUID?
+        let selectedSourcingID: UUID?
+    }
+
     var selectedItemID: UUID?
     var selectedVendorID: UUID?
     var selectedLogEntryID: UUID?
+    var selectedSourcingID: UUID?
+    var vendorsTab: VendorsTab = .vendors
+    var showInactiveVendors = false
+
+    // Back/forward navigation history. recordHistory() pushes the current snapshot
+    // before a drill-down; goBack()/goForward() shuttle between them. Capped at 50.
+    var historyStack: [NavigationSnapshot] = []
+    var forwardStack: [NavigationSnapshot] = []
+    var isApplyingHistory = false
     var searchQuery = ""
     var isLoading = false
     var error: String?
@@ -117,6 +150,63 @@ final class UpkeepStore {
         needsOnboarding = false
     }
 
+    // MARK: - Navigation History
+
+    var canGoBack: Bool { !historyStack.isEmpty }
+    var canGoForward: Bool { !forwardStack.isEmpty }
+
+    private func currentSnapshot() -> NavigationSnapshot {
+        NavigationSnapshot(
+            navigation: navigation,
+            vendorsTab: vendorsTab,
+            selectedItemID: selectedItemID,
+            selectedVendorID: selectedVendorID,
+            selectedLogEntryID: selectedLogEntryID,
+            selectedSourcingID: selectedSourcingID
+        )
+    }
+
+    /// Push the current navigation state onto the history stack. Call BEFORE a drill-down
+    /// mutation (clicking a link to another view, opening a detail from a list, etc.).
+    /// Clears the forward stack since a new branch is starting.
+    func recordHistory() {
+        let snap = currentSnapshot()
+        // Skip duplicates
+        if let last = historyStack.last, last == snap { return }
+        historyStack.append(snap)
+        forwardStack.removeAll()
+        if historyStack.count > 50 {
+            historyStack.removeFirst(historyStack.count - 50)
+        }
+    }
+
+    func goBack() {
+        guard let prev = historyStack.popLast() else { return }
+        forwardStack.append(currentSnapshot())
+        applySnapshot(prev)
+    }
+
+    func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        historyStack.append(currentSnapshot())
+        applySnapshot(next)
+    }
+
+    private func applySnapshot(_ snapshot: NavigationSnapshot) {
+        isApplyingHistory = true
+        navigation = snapshot.navigation
+        vendorsTab = snapshot.vendorsTab
+        selectedItemID = snapshot.selectedItemID
+        selectedVendorID = snapshot.selectedVendorID
+        selectedLogEntryID = snapshot.selectedLogEntryID
+        selectedSourcingID = snapshot.selectedSourcingID
+        // Defer flag clear so SwiftUI's .onChange handlers see the flag as still set
+        // and skip their normal selection-clearing behavior.
+        Task { @MainActor in
+            isApplyingHistory = false
+        }
+    }
+
     // MARK: - Background Refresh
 
     func startBackgroundRefresh() {
@@ -139,6 +229,7 @@ final class UpkeepStore {
                 let loadedItems = try await persistence.loadItems()
                 let loadedLog = try await persistence.loadLogEntries()
                 let loadedVendors = try await persistence.loadVendors()
+                let loadedSourcings = try await persistence.loadSourcings()
                 let loadedMembers = try await persistence.loadMembers()
 
                 // Detect conflicts before replacing in-memory model
@@ -147,6 +238,7 @@ final class UpkeepStore {
                 self.items = loadedItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.logEntries = loadedLog.sorted { $0.completedDate > $1.completedDate }
                 self.vendors = loadedVendors.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                self.sourcings = loadedSourcings.sorted { $0.updatedAt > $1.updatedAt }
                 self.members = loadedMembers
 
                 // Update known versions from what's on disk
@@ -261,6 +353,15 @@ final class UpkeepStore {
     var selectedLogEntry: LogEntry? {
         guard let id = selectedLogEntryID else { return nil }
         return logEntries.first { $0.id == id }
+    }
+
+    var selectedSourcing: Sourcing? {
+        guard let id = selectedSourcingID else { return nil }
+        return sourcings.first { $0.id == id }
+    }
+
+    var visibleVendors: [Vendor] {
+        showInactiveVendors ? vendors : vendors.filter(\.isActive)
     }
 
     // MARK: - Computed: Scheduling
@@ -445,11 +546,13 @@ final class UpkeepStore {
                 let loadedItems = try await persistence.loadItems()
                 let loadedLog = try await persistence.loadLogEntries()
                 let loadedVendors = try await persistence.loadVendors()
+                let loadedSourcings = try await persistence.loadSourcings()
                 let loadedMembers = try await persistence.loadMembers()
                 let loadedConfig = (try? await persistence.loadConfig()) ?? AppConfig()
                 self.items = loadedItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.logEntries = loadedLog.sorted { $0.completedDate > $1.completedDate }
                 self.vendors = loadedVendors.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                self.sourcings = loadedSourcings.sorted { $0.updatedAt > $1.updatedAt }
                 self.members = loadedMembers
                 self.config = loadedConfig
                 self.error = nil
@@ -467,6 +570,9 @@ final class UpkeepStore {
         for item in activeItems {
             let due = nextDueDate(for: item)
             await notifications?.syncReminders(item: item, nextDueDate: due, daysBefore: config.defaultReminderDaysBefore)
+        }
+        for sourcing in sourcings {
+            await notifications?.syncSourcingReminder(sourcing: sourcing, daysBefore: config.defaultReminderDaysBefore)
         }
     }
 
@@ -900,12 +1006,14 @@ final class UpkeepStore {
                       website: String = "", location: String = "",
                       specialty: String = "", tags: [String] = [],
                       accountManager: AccountManager = AccountManager(),
-                      notes: String = "") {
+                      notes: String = "", source: String = "",
+                      isActive: Bool = true) {
         let vendor = Vendor(
             name: name, phone: phone, email: email,
             website: website, location: location,
             specialty: specialty, tags: tags,
-            accountManager: accountManager, notes: notes
+            accountManager: accountManager, notes: notes,
+            source: source, isActive: isActive
         )
         registerUndo("Add Vendor") { store in store.deleteVendor(id: vendor.id) }
         Task {
@@ -964,6 +1072,292 @@ final class UpkeepStore {
         Task {
             do {
                 try await persistence.saveVendor(vendor)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - Sourcing
+
+    var activeSourcings: [Sourcing] {
+        sourcings.filter(\.isOpen)
+    }
+
+    func sourcings(forItem itemID: UUID) -> [Sourcing] {
+        sourcings.filter { $0.linkedItemIDs.contains(itemID) }
+    }
+
+    func sourcings(replacing vendorID: UUID) -> [Sourcing] {
+        sourcings.filter { $0.replacingVendorID == vendorID }
+    }
+
+    func sourcing(id: UUID) -> Sourcing? {
+        sourcings.first { $0.id == id }
+    }
+
+    /// Items that will be reassigned to the winner if `sourcing` is hired.
+    /// For replace flows, this is every item currently using the replaced vendor *plus*
+    /// any explicitly-linked items that don't currently use it (deduped).
+    /// For non-replace flows, just the explicitly-linked items.
+    func itemsAffectedOnHire(_ sourcing: Sourcing) -> [MaintenanceItem] {
+        var seen = Set<UUID>()
+        var affected: [MaintenanceItem] = []
+        let linkedItems = sourcing.linkedItemIDs.compactMap { id in
+            items.first { $0.id == id }
+        }
+        if let replacingID = sourcing.replacingVendorID {
+            for item in items where item.vendorID == replacingID {
+                if seen.insert(item.id).inserted { affected.append(item) }
+            }
+        }
+        for item in linkedItems where seen.insert(item.id).inserted {
+            affected.append(item)
+        }
+        return affected
+    }
+
+    func createSourcing(title: String, linkedItemIDs: [UUID] = [],
+                        replacingVendorID: UUID? = nil,
+                        decideBy: Date? = nil, notes: String = "") {
+        let sourcing = Sourcing(
+            title: title, linkedItemIDs: linkedItemIDs,
+            replacingVendorID: replacingVendorID, decideBy: decideBy,
+            notes: notes, lastModifiedBy: currentMemberID
+        )
+        registerUndo("New Sourcing") { store in store.deleteSourcing(id: sourcing.id) }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func updateSourcing(_ sourcing: Sourcing, actionName: String = "Edit Sourcing") {
+        if let prev = sourcings.first(where: { $0.id == sourcing.id }) {
+            registerUndo(actionName) { store in store.updateSourcing(prev, actionName: actionName) }
+        }
+        var updated = sourcing
+        updated.touch(by: currentMemberID)
+        Task {
+            do {
+                try await persistence.saveSourcing(updated)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func deleteSourcing(id: UUID) {
+        if let sourcing = sourcings.first(where: { $0.id == id }) {
+            registerUndo("Delete Sourcing") { store in store.restoreSourcing(sourcing) }
+        }
+        Task {
+            do {
+                try await persistence.deleteSourcing(id: id)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func restoreSourcing(_ sourcing: Sourcing) {
+        registerUndo("Delete Sourcing") { store in store.deleteSourcing(id: sourcing.id) }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - Candidates
+
+    func addCandidate(to sourcingID: UUID, _ candidate: Candidate) {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }) else { return }
+        let prev = sourcing
+        sourcing.candidates.append(candidate)
+        sourcing.touch(by: currentMemberID)
+        registerUndo("Add Candidate") { store in store.updateSourcing(prev, actionName: "Remove Candidate") }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func updateCandidate(_ candidate: Candidate, in sourcingID: UUID, actionName: String = "Edit Candidate") {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }),
+              let idx = sourcing.candidates.firstIndex(where: { $0.id == candidate.id }) else { return }
+        let prev = sourcing
+        sourcing.candidates[idx] = candidate
+        sourcing.touch(by: currentMemberID)
+        registerUndo(actionName) { store in store.updateSourcing(prev, actionName: actionName) }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func removeCandidate(_ candidateID: UUID, from sourcingID: UUID) {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }) else { return }
+        let prev = sourcing
+        sourcing.candidates.removeAll { $0.id == candidateID }
+        sourcing.touch(by: currentMemberID)
+        registerUndo("Remove Candidate") { store in store.updateSourcing(prev, actionName: "Restore Candidate") }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Closes a sourcing by hiring a candidate. Promotes:
+    /// - Winner → new active Vendor
+    /// - Replaced vendor (if `replacingVendorID` set) → flipped to inactive; **all items** currently using it are reassigned to the winner
+    /// - In non-replace flows, only the linked item is reassigned
+    /// - Losers reaching `quoted` or above → inactive Vendor records
+    /// - Losers below `quoted` → not promoted (snapshot-only)
+    /// `extraSavedCandidateIDs` opts in losers below `quoted` to also become inactive vendors.
+    func hireCandidate(_ candidateID: UUID, in sourcingID: UUID,
+                       extraSavedCandidateIDs: Set<UUID> = []) {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }),
+              let winnerIdx = sourcing.candidates.firstIndex(where: { $0.id == candidateID }) else { return }
+
+        let now = Date.now
+        var newVendors: [Vendor] = []
+        var vendorsToUpdate: [Vendor] = []
+        var itemsToUpdate: [MaintenanceItem] = []
+
+        // Promote winner → active Vendor
+        var winner = sourcing.candidates[winnerIdx]
+        let winnerVendor = Vendor(
+            name: winner.name, phone: winner.phone, email: winner.email,
+            notes: winner.notes, source: winner.source, isActive: true,
+            lastModifiedBy: currentMemberID, createdAt: now, updatedAt: now
+        )
+        winner.status = .hired
+        winner.promotedToVendorID = winnerVendor.id
+        sourcing.candidates[winnerIdx] = winner
+        newVendors.append(winnerVendor)
+
+        // Promote eligible losers → inactive Vendors
+        for idx in sourcing.candidates.indices where idx != winnerIdx {
+            var c = sourcing.candidates[idx]
+            let shouldPromote = c.status.reachedQuoted || extraSavedCandidateIDs.contains(c.id)
+            if shouldPromote {
+                let v = Vendor(
+                    name: c.name, phone: c.phone, email: c.email,
+                    notes: c.notes, source: c.source, isActive: false,
+                    lastModifiedBy: currentMemberID, createdAt: now, updatedAt: now
+                )
+                c.promotedToVendorID = v.id
+                sourcing.candidates[idx] = c
+                newVendors.append(v)
+            }
+        }
+
+        // Cascade reassignment: every item currently using the replaced vendor (replace flow)
+        // OR just the linkedItem (non-replace flow). Use itemsAffectedOnHire to dedupe.
+        let affected = itemsAffectedOnHire(sourcing)
+        var seenItemIDs = Set<UUID>()
+        for item in affected where seenItemIDs.insert(item.id).inserted {
+            var updated = item
+            updated.vendorID = winnerVendor.id
+            updated.touch(by: currentMemberID)
+            itemsToUpdate.append(updated)
+        }
+
+        // Replace flow: deactivate the old vendor
+        if let replacingID = sourcing.replacingVendorID,
+           var oldVendor = vendors.first(where: { $0.id == replacingID }) {
+            oldVendor.isActive = false
+            oldVendor.touch(by: currentMemberID)
+            vendorsToUpdate.append(oldVendor)
+        }
+
+        sourcing.status = .decided
+        sourcing.hiredCandidateID = winner.id
+        sourcing.touch(by: currentMemberID)
+
+        Task {
+            do {
+                for v in newVendors { try await persistence.saveVendor(v) }
+                for v in vendorsToUpdate { try await persistence.saveVendor(v) }
+                for i in itemsToUpdate { try await persistence.saveItem(i) }
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - Candidate Attachments
+
+    func addAttachmentToCandidate(sourcingID: UUID, candidateID: UUID, _ attachment: Attachment) {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }),
+              let idx = sourcing.candidates.firstIndex(where: { $0.id == candidateID }) else { return }
+        sourcing.candidates[idx].attachments.append(attachment)
+        sourcing.touch(by: currentMemberID)
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func removeAttachmentFromCandidate(sourcingID: UUID, candidateID: UUID, attachmentID: UUID) {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }),
+              let idx = sourcing.candidates.firstIndex(where: { $0.id == candidateID }),
+              let attachment = sourcing.candidates[idx].attachments.first(where: { $0.id == attachmentID })
+        else { return }
+        sourcing.candidates[idx].attachments.removeAll { $0.id == attachmentID }
+        sourcing.touch(by: currentMemberID)
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
+                if let fn = attachment.filename, attachment.isFileBacked {
+                    try? await persistence.deleteAttachmentFile(filename: fn)
+                }
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func cancelSourcing(_ sourcingID: UUID, reason: String = "") {
+        guard var sourcing = sourcings.first(where: { $0.id == sourcingID }) else { return }
+        let prev = sourcing
+        sourcing.status = .cancelled
+        sourcing.cancelReason = reason
+        sourcing.touch(by: currentMemberID)
+        registerUndo("Cancel Sourcing") { store in store.updateSourcing(prev, actionName: "Reopen Sourcing") }
+        Task {
+            do {
+                try await persistence.saveSourcing(sourcing)
                 loadAll()
             } catch {
                 self.error = error.localizedDescription

@@ -32,6 +32,47 @@ struct ItemDetailView: View {
 
                 Divider()
 
+                // Active sourcing (banner)
+                let activeSourcings = store.sourcings(forItem: item.id).filter(\.isOpen)
+                if !activeSourcings.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(activeSourcings) { sourcing in
+                            Button {
+                                store.recordHistory()
+                                store.navigation = .vendors
+                                store.vendorsTab = .sourcings
+                                store.selectedSourcingID = sourcing.id
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "magnifyingglass.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.upkeepAmber)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Active sourcing")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(sourcing.title)
+                                            .font(.body.weight(.medium))
+                                    }
+                                    Spacer()
+                                    Text("\(sourcing.candidates.count) candidate\(sourcing.candidates.count == 1 ? "" : "s")")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(10)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(.upkeepAmber.opacity(0.08)))
+                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.upkeepAmber.opacity(0.4)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(20)
+                    Divider()
+                }
+
                 // Vendor
                 if let vendor = store.vendor(for: item) {
                     vendorSection(vendor)
@@ -328,6 +369,7 @@ struct ItemDetailView: View {
                 .foregroundStyle(.secondary)
 
             Button {
+                store.recordHistory()
                 store.navigation = .vendors
                 store.selectedVendorID = vendor.id
             } label: {
@@ -649,17 +691,71 @@ struct ItemDetailView: View {
                     Spacer()
                 }
             } else {
-                ForEach(entries) { entry in
-                    Button {
-                        store.navigation = .log
-                        store.selectedLogEntryID = entry.id
-                    } label: {
-                        LogEntryRow(entry: entry, showItemName: false)
+                VStack(spacing: 8) {
+                    ForEach(entries) { entry in
+                        Button {
+                            store.recordHistory()
+                            store.navigation = .log
+                            store.selectedLogEntryID = entry.id
+                        } label: {
+                            historyEntryCard(entry)
+                        }
+                        .buttonStyle(.plain)
+                        .pointerCursor()
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func historyEntryCard(_ entry: LogEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: entry.category.icon)
+                    .font(.body)
+                    .foregroundStyle(Color.categoryColor(entry.category))
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.title)
+                        .font(.body.weight(.medium))
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(entry.completedDate.shortDate)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if !entry.performedBy.isEmpty {
+                            Text("~").font(.caption).foregroundStyle(.quaternary)
+                            Text(entry.performedBy)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        if !entry.attachments.isEmpty {
+                            HStack(spacing: 2) {
+                                Image(systemName: "paperclip")
+                                Text("\(entry.attachments.count)")
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                RatingDisplay(rating: entry.rating)
+                CostText(cost: entry.cost)
+            }
+
+            if !entry.notes.trimmingCharacters(in: .whitespaces).isEmpty {
+                MarkdownNotesView(text: entry.notes)
+                    .padding(.leading, 32)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.background))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.3)))
     }
 }
 
