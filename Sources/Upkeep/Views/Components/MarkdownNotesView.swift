@@ -26,6 +26,16 @@ struct MarkdownNotesView: View {
                             .foregroundStyle(.primary)
                             .textSelection(.enabled)
                     }
+                case .numbered(let marker, let content):
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(marker).")
+                            .font(.body.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Text(markdown(content))
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                    }
                 case .blank:
                     Spacer().frame(height: 4)
                 }
@@ -42,6 +52,7 @@ struct MarkdownNotesView: View {
 private enum NoteBlock {
     case paragraph(String)
     case bullet(String)
+    case numbered(String, String)  // marker (e.g. "1", "10"), content
     case blank
 }
 
@@ -56,6 +67,8 @@ private func parseBlocks(_ text: String) -> [NoteBlock] {
             if case .blank = blocks.last {} else {
                 blocks.append(.blank)
             }
+        } else if let (marker, content) = numberedContent(trimmed) {
+            blocks.append(.numbered(marker, content))
         } else if let content = bulletContent(trimmed) {
             blocks.append(.bullet(content))
         } else {
@@ -83,4 +96,20 @@ private func bulletContent(_ line: String) -> String? {
         }
     }
     return nil
+}
+
+/// Detects numbered list lines like "1. step", "10. step", "2) step" and returns
+/// (marker, content). The original number is preserved so a list starting at "5."
+/// renders as "5." rather than being renumbered.
+private func numberedContent(_ line: String) -> (String, String)? {
+    var idx = line.startIndex
+    while idx < line.endIndex, line[idx].isNumber { idx = line.index(after: idx) }
+    guard idx > line.startIndex, idx < line.endIndex else { return nil }
+    let punct = line[idx]
+    guard punct == "." || punct == ")" else { return nil }
+    let afterPunct = line.index(after: idx)
+    guard afterPunct < line.endIndex, line[afterPunct] == " " else { return nil }
+    let marker = String(line[line.startIndex..<idx])
+    let content = String(line[line.index(after: afterPunct)...])
+    return (marker, content)
 }

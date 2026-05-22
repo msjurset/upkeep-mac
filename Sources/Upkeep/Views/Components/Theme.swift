@@ -83,6 +83,54 @@ extension ShapeStyle where Self == Color {
     }
 }
 
+// MARK: - Form Row / Section
+
+/// A label/control row with a fixed-width right-aligned label, used to keep
+/// editor sheets visually aligned without dropping into a SwiftUI Form.
+struct FormRow<Content: View>: View {
+    let label: String
+    var labelWidth: CGFloat = 140
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(label)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: labelWidth, alignment: .trailing)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// A titled section that renders as a small section header above a panel-styled
+/// card containing the rows.
+struct FormSection<Content: View>: View {
+    let title: String?
+    @ViewBuilder let content: () -> Content
+
+    init(_ title: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let title {
+                Text(title.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .panelStyle(cornerRadius: 10, padding: 12)
+        }
+    }
+}
+
 // MARK: - View Modifiers
 
 struct CardStyle: ViewModifier {
@@ -273,6 +321,7 @@ struct AddCircleButton: View {
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 }
 
@@ -288,6 +337,22 @@ extension Color {
     /// into the empty area below.
     static var alternatingRow: Color {
         Color(NSColor.alternatingContentBackgroundColors[1])
+    }
+
+    /// Maps a `HouseholdMember.color` rawValue to a SwiftUI `Color`. Falls back
+    /// to amber for unknown values.
+    static func memberColor(_ name: String) -> Color {
+        switch name {
+        case "amber": return .upkeepAmber
+        case "blue": return .blue
+        case "green": return .upkeepGreen
+        case "purple": return .purple
+        case "red": return .upkeepRed
+        case "teal": return .teal
+        case "pink": return .pink
+        case "orange": return .orange
+        default: return .upkeepAmber
+        }
     }
 }
 

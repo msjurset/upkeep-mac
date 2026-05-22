@@ -71,6 +71,7 @@ struct DashboardView: View {
 
                 // Right column: planning & costs
                 VStack(alignment: .leading, spacing: 20) {
+                    WeatherWidget()
                     seasonalSection
                     if !store.logEntries.isEmpty {
                         costSection
@@ -86,6 +87,7 @@ struct DashboardView: View {
     private var narrowLayout: some View {
         VStack(alignment: .leading, spacing: 20) {
             healthOverview
+            WeatherWidget()
             if !store.items.isEmpty || !store.logEntries.isEmpty {
                 MaintenanceTimelineView()
                     .padding(.top, 16)
@@ -243,22 +245,31 @@ struct DashboardView: View {
 
                             Spacer()
 
-                            SupplyBadge(supply: supply)
-
-                            if !supply.productURL.isEmpty {
-                                Link(destination: URL(string: supply.productURL) ?? URL(string: "about:blank")!) {
-                                    Image(systemName: "cart")
-                                        .font(.caption)
-                                        .padding(6)
-                                        .background(Circle().fill(.upkeepAmber.opacity(0.12)))
-                                        .foregroundStyle(.upkeepAmber)
+                            if !supply.productURL.isEmpty,
+                               let url = URL(string: supply.productURL) {
+                                Link(destination: url) {
+                                    SupplyBadge(supply: supply)
                                 }
+                                .buttonStyle(.plain)
+                                .focusable(false)
                                 .help("Order online")
+                            } else {
+                                SupplyBadge(supply: supply)
                             }
+
+                            Button {
+                                store.dismissReorderAlert(itemID: item.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.body)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Dismiss this reminder for 30 days")
                         }
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 8).fill(.background))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.orange.opacity(0.3)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
                     }
                     .buttonStyle(.plain)
                 }

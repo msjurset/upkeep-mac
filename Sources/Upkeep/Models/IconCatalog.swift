@@ -109,7 +109,8 @@ enum IconCatalog {
         .init(name: "books.vertical.fill", aliases: ["shelf", "bookshelf", "library", "reading"], group: .rooms),
         .init(name: "cabinet", aliases: ["storage", "cupboard", "closet"], group: .rooms),
         .init(name: "cabinet.fill", aliases: ["storage", "cupboard", "closet"], group: .rooms),
-        .init(name: "rectangle.stack", aliases: ["carpet", "rug", "floor", "tile", "layers", "stack"], group: .rooms),
+        .init(name: "rectangle.stack", aliases: ["layers", "stack", "tile"], group: .rooms),
+        .init(name: "rectangle.checkered", aliases: ["carpet", "rug", "floor", "pattern"], group: .rooms),
         .init(name: "square.grid.3x3", aliases: ["tile", "grid", "floor"], group: .rooms),
         .init(name: "square.grid.4x3.fill", aliases: ["tile", "grid", "floor"], group: .rooms),
 
@@ -137,6 +138,16 @@ enum IconCatalog {
         .init(name: "powerplug.fill", aliases: ["plug", "electrical", "outlet"], group: .tools),
 
         // MARK: Cleaning
+        // Note: SF Symbols has no vacuum, broom, or mop symbol. Use generic
+        // cleaning-related symbols below as approximations.
+        .init(name: "wand.and.stars", aliases: ["clean", "vacuum", "magic", "fresh"], group: .cleaning),
+        .init(name: "wand.and.rays", aliases: ["clean", "vacuum", "fresh"], group: .cleaning),
+        .init(name: "air.purifier", aliases: ["clean air", "hepa", "filter"], group: .cleaning),
+        .init(name: "air.purifier.fill", aliases: ["clean air", "hepa", "filter"], group: .cleaning),
+        .init(name: "shower", aliases: ["bathroom", "wash", "rinse"], group: .cleaning),
+        .init(name: "shower.fill", aliases: ["bathroom", "wash", "rinse"], group: .cleaning),
+        .init(name: "shower.handheld", aliases: ["bathroom", "wash"], group: .cleaning),
+        .init(name: "shower.handheld.fill", aliases: ["bathroom", "wash"], group: .cleaning),
         .init(name: "sparkles", aliases: ["clean", "shine", "new"], group: .cleaning),
         .init(name: "sparkle", aliases: ["clean", "shine"], group: .cleaning),
         .init(name: "bubbles.and.sparkles", aliases: ["wash", "clean", "laundry", "soap"], group: .cleaning),

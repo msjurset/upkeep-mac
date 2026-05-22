@@ -10,6 +10,8 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 
 **Inventory**
 - Four schedule types: **Recurring** (every N days/weeks/months/years), **Seasonal** (annual windows like "May 25 – Jul 7"), **To-do** (one-time fixes with a due-by date), and **Ideas** (undated wishlist items — future projects you're mulling over, with notes, follow-ups, vendor research, and cost tracking)
+- **Multi-event schedule** — break one item into several timed sub-events (e.g. a lawn-care item with 13 yearly treatments, an HVAC item with separate electrical / plumbing / mechanical inspections, or a project with staged tasks). The dashboard and item detail view expand to one row per sub-event; logging a completion knows which sub-event it belongs to. Items without sub-events behave exactly as before.
+- Owner — assign a household member to facilitate or lead an item
 - To-do items auto-deactivate when logged as complete (configurable in Settings)
 - Custom SF Symbol icon per item (curated picker + full-library search) overriding the category default
 - Attachments on items and log entries: photos/PDFs copied into the shared data folder, PDF-by-link (don't copy), or URLs to external resources
@@ -21,16 +23,20 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 
 **Journal**
 - Log maintenance completions with date, cost, performer, and satisfaction rating
+- **Progress logs** — toggle "Counts as completion" off to record progress without resetting the next-due date (recurring/seasonal) or auto-completing a to-do
 - Standalone log entries for one-off work not tied to an item
 - Inline editing and expandable log rows
+- Log rows display the item's custom icon (when set) rather than the category default
+- Markdown notes render numbered lists (`1. step`, `10. step`) in addition to bullets
 
 **Dashboard**
 - Health overview with on-track progress ring
-- Maintenance timeline showing recent and upcoming work
+- **Weather widget** — 14-day local forecast from the home address (Open-Meteo, no API key required), with per-item "weather hint" callouts for outdoor work
+- Maintenance timeline showing recent and upcoming work — multi-event items expand into one row per sub-event
 - Responsive two-column layout at wider window sizes
 - Overdue items with quick-log buttons
 - 30-day timeline, seasonal checklists, spending breakdown by category
-- Follow-up and reorder alert sections
+- Follow-up and reorder alert sections — reorder cards can be dismissed for 30 days; auto-resurface if you still haven't restocked
 
 **Vendors**
 - Contact info: phone, email, website, location (Google Maps Plus Codes, coordinates, DMS, or URLs)
@@ -54,6 +60,7 @@ A macOS app for tracking home maintenance schedules, logging work, and managing 
 
 **Home Profile**
 - Property details: address, year built, square footage
+- Address is geocoded automatically (Core Location) and the coordinates drive the dashboard weather forecast — no API key, lookup happens locally
 - Major systems tracking (HVAC, roof, water heater, etc.) with brand, model, install date, and lifespan
 - Editable systems with add/edit/delete
 
@@ -89,7 +96,7 @@ make deploy
 ```sh
 swift build              # debug build
 make build               # release build
-swift test               # unit tests (137 tests)
+swift test               # unit tests (171 tests)
 make uitest              # UI tests (15 tests, requires xcodegen)
 make deploy              # build, bundle, install to /Applications
 ```
@@ -115,6 +122,8 @@ SwiftUI macOS app with `@Observable` + `@MainActor` state management. File-based
 
 - Swift 6.0, macOS 15.0+
 - Sparkle for auto-updates
+- Core Location for address geocoding (system framework, no API key)
+- Open-Meteo for weather forecasts (free, no API key, anonymous)
 - No other external dependencies
 
 ## License

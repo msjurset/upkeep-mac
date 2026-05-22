@@ -6,12 +6,20 @@ struct SchedulingService: Sendable {
 
     func lastCompletion(for itemID: UUID) -> LogEntry? {
         logEntries
-            .filter { $0.itemID == itemID }
+            .filter { $0.itemID == itemID && $0.countsAsCompletion }
             .sorted { $0.completedDate > $1.completedDate }
             .first
     }
 
     func nextDueDate(for item: MaintenanceItem) -> Date {
+        // Items with sub-events: earliest upcoming sub-event drives the
+        // "next due" — the item-level schedule becomes a fallback only when
+        // subEvents is empty.
+        if !item.subEvents.isEmpty {
+            return item.subEvents
+                .map { nextDueDate(for: item, subEvent: $0) }
+                .min() ?? .distantFuture
+        }
         switch item.scheduleKind {
         case .idea:
             // Ideas have no due date; far-future sentinel keeps them sorted last in "Due" mode.
@@ -31,6 +39,9 @@ struct SchedulingService: Sendable {
     func isOverdue(_ item: MaintenanceItem) -> Bool {
         guard item.isActive else { return false }
         if item.isSnoozed { return false }
+        if !item.subEvents.isEmpty {
+            return item.subEvents.contains { isOverdue(item, subEvent: $0) }
+        }
         switch item.scheduleKind {
         case .idea:
             return false
@@ -74,7 +85,7 @@ struct SchedulingService: Sendable {
         }
 
         let entries = logEntries
-            .filter { $0.itemID == itemID }
+            .filter { $0.itemID == itemID && $0.countsAsCompletion }
             .sorted { $0.completedDate > $1.completedDate }
         guard !entries.isEmpty else { return 0 }
 
@@ -228,7 +239,7 @@ struct SchedulingService: Sendable {
     private func seasonalStreak(for item: MaintenanceItem, window: SeasonalWindow) -> Int {
         let r = resolveWindow(window)
         let entries = logEntries
-            .filter { $0.itemID == item.id }
+            .filter { $0.itemID == item.id && $0.countsAsCompletion }
             .sorted { $0.completedDate > $1.completedDate }
 
         var streak = 0
@@ -259,4 +270,144 @@ enum SeasonalItemStatus {
     case overdue
     case doneForYear
     case skippedForYear
+}
+
+/// Represents a single dated entry on the calendar/upcoming list.
+/// For items without sub-events, one entry per item.
+/// For items with sub-events, one entry per sub-event.
+struct ScheduleEntry: Identifiable, Hashable, Sendable {
+    let item: MaintenanceItem
+    let subEvent: SubEvent?
+    let dueDate: Date
+    let isOverdue: Bool
+
+    var id: String {
+        if let sub = subEvent {
+            return "\(item.id.uuidString)/\(sub.id.uuidString)"
+        }
+        return item.id.uuidString
+    }
+
+    /// Display name. For sub-events, prefixes with the parent item's name
+    /// for context (e.g., "Sunday Lawn / Dandelion Doom"). Falls back to the
+    /// item name if the sub-event name is empty.
+    var displayName: String {
+        guard let sub = subEvent, !sub.name.isEmpty else { return item.name }
+        return "\(item.name) / \(sub.name)"
+    }
+}
+
+extension SchedulingService {
+    /// Returns one entry per active item — or one entry per sub-event for
+    /// items that have sub-events — whose `dueDate` falls in `[start, end)`.
+    /// Sorted by due date.
+    func entriesDueInRange(start: Date, end: Date) -> [ScheduleEntry] {
+        var out: [ScheduleEntry] = []
+        for item in items where item.isActive {
+            if item.subEvents.isEmpty {
+                let due = nextDueDate(for: item)
+                if due >= start && due < end {
+                    out.append(ScheduleEntry(
+                        item: item, subEvent: nil,
+                        dueDate: due, isOverdue: isOverdue(item)
+                    ))
+                }
+            } else {
+                for sub in item.subEvents {
+                    let due = nextDueDate(for: item, subEvent: sub)
+                    if due >= start && due < end {
+                        out.append(ScheduleEntry(
+                            item: item, subEvent: sub,
+                            dueDate: due, isOverdue: isOverdue(item, subEvent: sub)
+                        ))
+                    }
+                }
+            }
+        }
+        return out.sorted { $0.dueDate < $1.dueDate }
+    }
+
+    func daysUntilSubEvent(item: MaintenanceItem, sub: SubEvent) -> Int {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: .now)
+        let end = cal.startOfDay(for: nextDueDate(for: item, subEvent: sub))
+        return cal.dateComponents([.day], from: start, to: end).day ?? 0
+    }
+
+    func nextDueDate(for item: MaintenanceItem, subEvent sub: SubEvent) -> Date {
+        if sub.isSnoozed, let until = sub.snoozedUntil { return until }
+
+        if let window = sub.seasonalWindow {
+            let cal = Calendar.current
+            let now = Date.now
+            let year = cal.component(.year, from: now)
+            let thisStart = window.startDate(in: year)
+            let thisEnd = window.endDate(in: year)
+            let nextYearStart = window.startDate(in: year + 1)
+
+            // Skipped this year (item-level or sub-event-level)
+            if item.skippedYear == year || sub.skippedYear == year {
+                return nextYearStart
+            }
+
+            // Has a log entry counting as this cycle's completion?
+            if isCompletedForCurrentPeriod(item: item, subEvent: sub) {
+                return nextYearStart
+            }
+
+            if now < thisStart { return thisStart }
+            // Inside the window or past it without completion. Returning
+            // thisEnd lets daysUntilDue count down while inside, and goes
+            // negative once past — which matches the seasonal-item semantic.
+            return thisEnd
+        }
+
+        if let due = sub.dueDate { return due }
+
+        return .distantFuture
+    }
+
+    /// True when there is a log entry recording completion of this sub-event
+    /// for the current period. For seasonal sub-events the period is "the last
+    /// 12 months" — pragmatic so logs entered before/after the strict window
+    /// still credit the cycle. For one-time sub-events any log counts.
+    func isCompletedForCurrentPeriod(item: MaintenanceItem, subEvent sub: SubEvent) -> Bool {
+        if sub.seasonalWindow != nil {
+            let cutoff = Calendar.current.date(byAdding: .day, value: -365, to: .now) ?? .distantPast
+            return logEntries.contains { entry in
+                entry.itemID == item.id
+                    && entry.subEventID == sub.id
+                    && entry.countsAsCompletion
+                    && entry.completedDate >= cutoff
+            }
+        }
+        if sub.dueDate != nil {
+            return logEntries.contains { entry in
+                entry.itemID == item.id && entry.subEventID == sub.id && entry.countsAsCompletion
+            }
+        }
+        return false
+    }
+
+    func isOverdue(_ item: MaintenanceItem, subEvent sub: SubEvent) -> Bool {
+        guard item.isActive else { return false }
+        if item.isSnoozed || sub.isSnoozed { return false }
+
+        if let window = sub.seasonalWindow {
+            let cal = Calendar.current
+            let year = cal.component(.year, from: .now)
+            let thisEnd = window.endDate(in: year)
+
+            if item.skippedYear == year || sub.skippedYear == year { return false }
+            if isCompletedForCurrentPeriod(item: item, subEvent: sub) { return false }
+            return .now > thisEnd
+        }
+
+        if sub.dueDate != nil {
+            if isCompletedForCurrentPeriod(item: item, subEvent: sub) { return false }
+            return (sub.dueDate ?? .distantFuture) < .now
+        }
+
+        return false
+    }
 }

@@ -60,4 +60,4 @@ uitest:
 		-destination 'platform=macOS' \
 		| tail -60
 
-.PHONY: build bundle icon deploy clean test uitest seed backup restore backups release
+.PHONY: build bundle icon assets deploy clean test uitest seed backup restore backups release

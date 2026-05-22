@@ -48,6 +48,10 @@ struct MaintenanceTimelineView: View {
     @State private var dragStartOffset: CGFloat = 0
     /// Cached viewport width for arrow-paging calculations.
     @State private var viewWidth: CGFloat = 0
+    /// Set true when the user crosses the drag threshold; the pill Button reads this
+    /// in its action to suppress the navigate-on-tap that would otherwise fire on
+    /// mouse-up after a click-drag (because `.simultaneousGesture` lets both fire).
+    @State private var didDrag = false
     /// Guards one-time scroll-to-center on first appearance.
     @State private var hasScrolledToNow = false
 
@@ -78,10 +82,15 @@ struct MaintenanceTimelineView: View {
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 5)
                             .onChanged { value in
+                                didDrag = true
                                 scrollOffset = clamp(dragStartOffset - value.translation.width, max: maxOffset)
                             }
                             .onEnded { _ in
                                 dragStartOffset = scrollOffset
+                                // Reset on the next run-loop tick so the pill Button's
+                                // tap action (which fires alongside this onEnded) still
+                                // sees didDrag == true and skips its navigate.
+                                DispatchQueue.main.async { didDrag = false }
                             }
                     )
                     // Sticky section labels that float above the timeline content.
@@ -246,6 +255,7 @@ struct MaintenanceTimelineView: View {
 
             // Pill card body.
             Button {
+                guard !didDrag else { return }
                 navigateTo(entry)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {

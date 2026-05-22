@@ -495,7 +495,23 @@ final class UpkeepStore {
     }
 
     var lowStockItems: [MaintenanceItem] {
-        activeItems.filter { $0.supply?.needsReorder == true }
+        let scheduling = self.scheduling
+        return activeItems.filter { item in
+            guard let supply = item.supply, supply.needsReorder else { return false }
+            if supply.isReorderDismissalActive { return false }
+            // Only nag when the next use is within two weeks.
+            return scheduling.daysUntilDue(item) <= 14
+        }
+    }
+
+    /// Hide the "Reorder Needed" card for this item until 30 days pass or
+    /// stock changes. Called from the dashboard X button.
+    func dismissReorderAlert(itemID: UUID) {
+        guard var item = items.first(where: { $0.id == itemID }),
+              var supply = item.supply else { return }
+        supply.reorderDismissedAt = .now
+        item.supply = supply
+        updateItem(item, actionName: "Dismiss Reorder Alert")
     }
 
     var onTrackCount: Int {
@@ -519,6 +535,13 @@ final class UpkeepStore {
 
     func itemsDueInRange(start: Date, end: Date) -> [MaintenanceItem] {
         scheduling.itemsDueInRange(start: start, end: end)
+    }
+
+    /// Same as `itemsDueInRange` but returns one entry per sub-event for
+    /// multi-event items. Use this for views that should render each event
+    /// individually (calendar, upcoming list).
+    func entriesDueInRange(start: Date, end: Date) -> [ScheduleEntry] {
+        scheduling.entriesDueInRange(start: start, end: end)
     }
 
     func logEntries(for itemID: UUID) -> [LogEntry] {
@@ -593,16 +616,19 @@ final class UpkeepStore {
                     scheduleKind: ScheduleKind = .recurring,
                     frequencyInterval: Int = 1, frequencyUnit: FrequencyUnit = .months,
                     startDate: Date = .now, notes: String = "", vendorID: UUID? = nil,
+                    ownerID: UUID? = nil,
                     supply: Supply? = nil, tags: [String] = [],
                     customIcon: String? = nil,
-                    seasonalWindow: SeasonalWindow? = nil) {
+                    seasonalWindow: SeasonalWindow? = nil,
+                    subEvents: [SubEvent] = []) {
         let item = MaintenanceItem(
             name: name, category: category, priority: priority,
             scheduleKind: scheduleKind,
             frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
-            startDate: startDate, notes: notes, vendorID: vendorID,
+            startDate: startDate, notes: notes, vendorID: vendorID, ownerID: ownerID,
             supply: supply, tags: tags, customIcon: customIcon,
-            seasonalWindow: seasonalWindow
+            seasonalWindow: seasonalWindow,
+            subEvents: subEvents
         )
         registerUndo("Add Item") { store in store.deleteItem(id: item.id) }
         Task {
@@ -891,19 +917,20 @@ final class UpkeepStore {
 
     // MARK: - Log Entry CRUD
 
-    func logCompletion(itemID: UUID?, title: String, category: MaintenanceCategory = .other,
+    func logCompletion(itemID: UUID?, subEventID: UUID? = nil, title: String, category: MaintenanceCategory = .other,
                        date: Date = .now, notes: String = "", cost: Decimal? = nil,
                        performedBy: String = "", rating: Int? = nil,
-                       markComplete: Bool = true) {
+                       countsAsCompletion: Bool = true) {
         let entry = LogEntry(
-            itemID: itemID, title: title, category: category,
+            itemID: itemID, subEventID: subEventID, title: title, category: category,
             completedDate: date, notes: notes, cost: cost, performedBy: performedBy,
-            rating: rating
+            rating: rating, countsAsCompletion: countsAsCompletion
         )
         registerUndo("Log Entry") { store in store.deleteLogEntry(id: entry.id) }
 
-        // Apply item-side side effects of completion: supply decrement and/or
-        // auto-deactivate for to-do items. Combined so we save the item once.
+        // Apply item-side side effects of completion: supply decrement always
+        // (you used it whether or not the work is "done"); auto-deactivate
+        // for to-dos only when this entry counts as completion.
         if let itemID, var item = items.first(where: { $0.id == itemID }) {
             let prevItem = item
             var modified = false
@@ -914,7 +941,7 @@ final class UpkeepStore {
                 modified = true
             }
 
-            if markComplete && item.isOneTime && item.isActive && config.autoDeactivateCompletedTodos {
+            if countsAsCompletion && item.isOneTime && item.isActive && config.autoDeactivateCompletedTodos {
                 item.isActive = false
                 modified = true
             }
@@ -1405,6 +1432,15 @@ final class UpkeepStore {
     func memberName(for id: UUID?) -> String? {
         guard let id else { return nil }
         return members.first { $0.id == id }?.name
+    }
+
+    func member(for id: UUID?) -> HouseholdMember? {
+        guard let id else { return nil }
+        return members.first { $0.id == id }
+    }
+
+    func owner(for item: MaintenanceItem) -> HouseholdMember? {
+        member(for: item.ownerID)
     }
 
     // MARK: - Backup

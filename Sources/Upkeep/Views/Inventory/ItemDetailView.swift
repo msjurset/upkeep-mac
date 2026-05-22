@@ -16,6 +16,10 @@ struct ItemDetailView: View {
     @State private var followUpDate = Date.now
     @State private var localStock: Int?
     @State private var stockDebounce: Task<Void, Never>?
+    @State private var subEventForLog: SubEvent?
+    @State private var subEventForDetail: SubEvent?
+    @State private var editingSubEventID: UUID?
+    @State private var editingSubEventName: String = ""
 
     var body: some View {
         ScrollView {
@@ -29,6 +33,11 @@ struct ItemDetailView: View {
                 // Schedule info
                 scheduleSection
                     .padding(20)
+
+                // Weather hint for outdoor items (collapses to nothing when not applicable)
+                ItemWeatherHint(item: item)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
 
                 Divider()
 
@@ -80,6 +89,13 @@ struct ItemDetailView: View {
                     Divider()
                 }
 
+                // Owner (only shown when set)
+                if let owner = store.owner(for: item) {
+                    ownerSection(owner)
+                        .padding(20)
+                    Divider()
+                }
+
                 // Supply tracking
                 if item.supply != nil {
                     supplySection
@@ -100,6 +116,13 @@ struct ItemDetailView: View {
                 )
                 .padding(20)
                 Divider()
+
+                // Sub-events (multi-event schedule)
+                if !item.subEvents.isEmpty {
+                    subEventsSection
+                        .padding(20)
+                    Divider()
+                }
 
                 // Notes
                 if !item.notes.isEmpty {
@@ -173,6 +196,12 @@ struct ItemDetailView: View {
         }
         .sheet(isPresented: $showLogSheet) {
             LogEntrySheet(entry: nil, itemID: item.id)
+        }
+        .sheet(item: $subEventForLog) { sub in
+            LogEntrySheet(entry: nil, itemID: item.id, subEventID: sub.id)
+        }
+        .sheet(item: $subEventForDetail) { sub in
+            SubEventDetailSheet(itemID: item.id, subEventID: sub.id)
         }
         .sheet(isPresented: $showDeleteConfirm) {
             DeleteItemConfirmation(item: item, deleteLogs: $deleteAssociatedLogs)
@@ -399,6 +428,32 @@ struct ItemDetailView: View {
         }
     }
 
+    // MARK: - Owner
+
+    private func ownerSection(_ owner: HouseholdMember) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Owner")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(Color.memberColor(owner.color))
+                        .frame(width: 28, height: 28)
+                    Text(owner.initials)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+                Text(owner.name)
+                    .font(.body.weight(.medium))
+                Spacer()
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.background))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.3)))
+        }
+    }
+
     // MARK: - Supply
 
     @ViewBuilder
@@ -514,11 +569,11 @@ struct ItemDetailView: View {
                 }
 
                 // Quick stock adjustment
-                HStack {
+                HStack(spacing: 6) {
                     Text("Adjust stock:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Stepper("\(localStock ?? supply.stockOnHand)", value: Binding(
+                    Stepper(value: Binding(
                         get: { localStock ?? supply.stockOnHand },
                         set: { newValue in
                             localStock = newValue
@@ -530,8 +585,12 @@ struct ItemDetailView: View {
                                 localStock = nil
                             }
                         }
-                    ), in: 0...999)
-                    .frame(width: 120)
+                    ), in: 0...999) {
+                        Text("\(localStock ?? supply.stockOnHand)")
+                            .monospacedDigit()
+                            .frame(minWidth: 24, alignment: .trailing)
+                    }
+                    .fixedSize()
                 }
             }
         }
@@ -648,6 +707,93 @@ struct ItemDetailView: View {
         }
     }
 
+    // MARK: - Sub-events
+
+    private var subEventsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Schedule")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                ForEach(item.subEvents) { sub in
+                    subEventRow(sub)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func subEventRow(_ sub: SubEvent) -> some View {
+        let isComplete = store.scheduling.isCompletedForCurrentPeriod(item: item, subEvent: sub)
+        let isEditing = editingSubEventID == sub.id
+        HStack(alignment: .center, spacing: 10) {
+            Button {
+                subEventForLog = sub
+            } label: {
+                Image(systemName: isComplete ? "checkmark.circle.fill" : "circle")
+                    .font(.body)
+                    .foregroundStyle(isComplete ? .upkeepGreen : .secondary)
+                    .frame(width: 18)
+            }
+            .buttonStyle(.plain)
+            .help(isComplete ? "Logged for this period — click to add another" : "Log completion for this event")
+
+            VStack(alignment: .leading, spacing: 2) {
+                if isEditing {
+                    SubEventInlineNameField(
+                        text: $editingSubEventName,
+                        onCommit: { commitSubEventName(sub) }
+                    )
+                } else {
+                    Text(sub.name.isEmpty ? "(unnamed)" : sub.name)
+                        .font(.body)
+                        .strikethrough(isComplete)
+                        .foregroundStyle(isComplete ? .secondary : .primary)
+                        .onTapGesture(count: 2) {
+                            editingSubEventName = sub.name
+                            editingSubEventID = sub.id
+                        }
+                }
+                Text(subEventDateLabel(for: sub))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !isComplete && !isEditing {
+                let days = store.scheduling.daysUntilSubEvent(item: item, sub: sub)
+                DueDateBadge(daysUntilDue: days)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.background))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator.opacity(0.2)))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !isEditing else { return }
+            subEventForDetail = sub
+        }
+    }
+
+    private func commitSubEventName(_ sub: SubEvent) {
+        let trimmed = editingSubEventName.trimmingCharacters(in: .whitespaces)
+        if trimmed != sub.name {
+            var updated = item
+            if let idx = updated.subEvents.firstIndex(where: { $0.id == sub.id }) {
+                updated.subEvents[idx].name = trimmed
+                updated.subEvents[idx].touch()
+                store.updateItem(updated, actionName: "Rename Sub-event")
+            }
+        }
+        editingSubEventID = nil
+    }
+
+    private func subEventDateLabel(for sub: SubEvent) -> String {
+        if let window = sub.seasonalWindow { return window.description }
+        if let due = sub.dueDate { return due.shortDate }
+        return "—"
+    }
+
     // MARK: - Notes
 
     private var notesSection: some View {
@@ -711,7 +857,7 @@ struct ItemDetailView: View {
     private func historyEntryCard(_ entry: LogEntry) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: entry.category.icon)
+                Image(systemName: item.effectiveIcon)
                     .font(.body)
                     .foregroundStyle(Color.categoryColor(entry.category))
                     .frame(width: 22)

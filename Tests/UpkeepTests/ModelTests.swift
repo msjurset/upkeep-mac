@@ -62,10 +62,10 @@ struct FrequencyUnitTests {
 
     @Test("singular")
     func singular() {
-        #expect(FrequencyUnit.days.singular == "day")
-        #expect(FrequencyUnit.weeks.singular == "week")
-        #expect(FrequencyUnit.months.singular == "month")
-        #expect(FrequencyUnit.years.singular == "year")
+        #expect(FrequencyUnit.days.singular == "Day")
+        #expect(FrequencyUnit.weeks.singular == "Week")
+        #expect(FrequencyUnit.months.singular == "Month")
+        #expect(FrequencyUnit.years.singular == "Year")
     }
 }
 
@@ -223,6 +223,183 @@ struct MaintenanceItemTests {
         let decoded = try decoder.decode(MaintenanceItem.self, from: stripped)
         #expect(decoded.scheduleKind == .seasonal)
         #expect(decoded.isSeasonal)
+    }
+
+    @Test("MaintenanceItem with subEvents round-trips")
+    func subEventsRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(
+            name: "Sunday Lawn Care",
+            seasonalWindow: SeasonalWindow(startMonth: 4, startDay: 1, endMonth: 11, endDay: 1),
+            subEvents: [
+                SubEvent(name: "Dandelion Doom",
+                         seasonalWindow: SeasonalWindow(startMonth: 5, startDay: 4, endMonth: 5, endDay: 7)),
+                SubEvent(name: "Fall Patch",
+                         seasonalWindow: SeasonalWindow(startMonth: 8, startDay: 10, endMonth: 9, endDay: 1),
+                         notes: "Re-seed bare spots"),
+            ]
+        )
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.subEvents.count == 2)
+        #expect(decoded.subEvents[0].name == "Dandelion Doom")
+        #expect(decoded.subEvents[0].seasonalWindow?.startMonth == 5)
+        #expect(decoded.subEvents[1].notes == "Re-seed bare spots")
+    }
+
+    @Test("ownerID round-trips and pre-feature JSON decodes nil")
+    func ownerRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let owner = UUID()
+        let item = MaintenanceItem(name: "Lawn", ownerID: owner)
+        let data = try encoder.encode(item)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: data)
+        #expect(decoded.ownerID == owner)
+
+        // Strip ownerID to simulate pre-feature JSON
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "ownerID")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let legacy = try decoder.decode(MaintenanceItem.self, from: stripped)
+        #expect(legacy.ownerID == nil)
+    }
+
+    @Test("pre-feature JSON without subEvents decodes as empty array")
+    func backCompatNoSubEvents() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let item = MaintenanceItem(name: "Filter", frequencyInterval: 3, frequencyUnit: .months)
+        let data = try encoder.encode(item)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "subEvents")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(MaintenanceItem.self, from: stripped)
+        #expect(decoded.subEvents.isEmpty)
+    }
+}
+
+// MARK: - SubEvent
+
+@Suite("SubEvent")
+struct SubEventTests {
+    @Test("seasonal sub-event round-trips")
+    func seasonalRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let event = SubEvent(
+            name: "Electrical inspection",
+            seasonalWindow: SeasonalWindow(startMonth: 3, startDay: 1, endMonth: 3, endDay: 31),
+            notes: "Check breaker panel",
+            vendorID: UUID()
+        )
+        let data = try encoder.encode(event)
+        let decoded = try decoder.decode(SubEvent.self, from: data)
+        #expect(decoded.id == event.id)
+        #expect(decoded.name == "Electrical inspection")
+        #expect(decoded.seasonalWindow?.startMonth == 3)
+        #expect(decoded.notes == "Check breaker panel")
+        #expect(decoded.vendorID == event.vendorID)
+    }
+
+    @Test("one-time sub-event with dueDate round-trips")
+    func oneTimeRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let date = Date(timeIntervalSince1970: 1_750_000_000)
+        let event = SubEvent(name: "Foundation pour", dueDate: date)
+        let data = try encoder.encode(event)
+        let decoded = try decoder.decode(SubEvent.self, from: data)
+        #expect(decoded.dueDate == date)
+        #expect(decoded.seasonalWindow == nil)
+    }
+
+    @Test("isSnoozed reflects snoozedUntil")
+    func snooze() {
+        let past = SubEvent(name: "x", snoozedUntil: Date(timeIntervalSinceNow: -60))
+        let future = SubEvent(name: "y", snoozedUntil: Date(timeIntervalSinceNow: 60))
+        #expect(!past.isSnoozed)
+        #expect(future.isSnoozed)
+    }
+}
+
+// MARK: - LogEntry sub-event reference
+
+@Suite("LogEntry subEventID")
+struct LogEntrySubEventTests {
+    @Test("subEventID round-trips")
+    func roundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let subID = UUID()
+        let entry = LogEntry(itemID: UUID(), subEventID: subID, title: "Fall Patch")
+        let data = try encoder.encode(entry)
+        let decoded = try decoder.decode(LogEntry.self, from: data)
+        #expect(decoded.subEventID == subID)
+    }
+
+    @Test("pre-feature JSON without subEventID decodes as nil")
+    func backCompatNil() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let entry = LogEntry(itemID: UUID(), title: "Old entry")
+        let data = try encoder.encode(entry)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "subEventID")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(LogEntry.self, from: stripped)
+        #expect(decoded.subEventID == nil)
+    }
+
+    @Test("countsAsCompletion round-trips")
+    func countsAsCompletionRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let entry = LogEntry(itemID: UUID(), title: "Progress", countsAsCompletion: false)
+        let data = try encoder.encode(entry)
+        let decoded = try decoder.decode(LogEntry.self, from: data)
+        #expect(decoded.countsAsCompletion == false)
+    }
+
+    @Test("pre-feature JSON without countsAsCompletion defaults to true")
+    func countsAsCompletionBackCompat() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let entry = LogEntry(itemID: UUID(), title: "Old entry")
+        let data = try encoder.encode(entry)
+        var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        json.removeValue(forKey: "countsAsCompletion")
+        let stripped = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try decoder.decode(LogEntry.self, from: stripped)
+        #expect(decoded.countsAsCompletion == true)
     }
 }
 

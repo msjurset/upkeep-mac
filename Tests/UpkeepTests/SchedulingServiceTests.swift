@@ -198,6 +198,45 @@ struct SchedulingServiceTests {
         let expected = Calendar.current.date(byAdding: component, value: 2, to: start)!
         #expect(Calendar.current.isDate(due, inSameDayAs: expected))
     }
+
+    @Test("progress-only log does not advance recurring schedule")
+    func progressLogIgnoredForRecurring() {
+        let item = makeItem(frequencyInterval: 1, frequencyUnit: .months)
+        let progress = LogEntry(
+            itemID: item.id, title: "Halfway done", category: .other,
+            completedDate: .now, countsAsCompletion: false
+        )
+        let svc = SchedulingService(items: [item], logEntries: [progress])
+        let due = svc.nextDueDate(for: item)
+        let expected = Calendar.current.date(byAdding: .month, value: 1, to: item.startDate)!
+        #expect(Calendar.current.isDate(due, inSameDayAs: expected))
+    }
+
+    @Test("progress-only log does not contribute to streak")
+    func progressLogStreak() {
+        let item = makeItem(frequencyInterval: 1, frequencyUnit: .months)
+        let progress = LogEntry(
+            itemID: item.id, title: "In progress", category: .other,
+            completedDate: .now, countsAsCompletion: false
+        )
+        let svc = SchedulingService(items: [item], logEntries: [progress])
+        #expect(svc.currentStreak(for: item.id) == 0)
+    }
+
+    @Test("counted log resets schedule, progress log layered on top does not")
+    func countedThenProgressDoesNotShiftSchedule() {
+        let item = makeItem(frequencyInterval: 1, frequencyUnit: .months)
+        let completed = Calendar.current.date(byAdding: .day, value: -10, to: .now)!
+        let counted = makeLog(itemID: item.id, completedDate: completed)
+        let progress = LogEntry(
+            itemID: item.id, title: "Touch-up", category: .other,
+            completedDate: .now, countsAsCompletion: false
+        )
+        let svc = SchedulingService(items: [item], logEntries: [counted, progress])
+        let due = svc.nextDueDate(for: item)
+        let expected = Calendar.current.date(byAdding: .month, value: 1, to: completed)!
+        #expect(Calendar.current.isDate(due, inSameDayAs: expected))
+    }
 }
 
 // MARK: - Seasonal Window Scheduling
@@ -379,5 +418,106 @@ struct SeasonalSchedulingTests {
         let svc = SchedulingService(items: [item], logEntries: [])
         // The item didn't exist during last year's window, so it shouldn't be overdue
         #expect(!svc.isOverdue(item))
+    }
+}
+
+// MARK: - Sub-event scheduling
+
+@Suite("SchedulingService Sub-events")
+struct SubEventSchedulingTests {
+    @Test("item-level nextDueDate returns earliest sub-event when sub-events exist")
+    func nextDueIsEarliestSubEvent() {
+        let cal = Calendar.current
+        let now = Date.now
+        let earlierStart = cal.date(byAdding: .day, value: 5, to: now)!
+        let earlierEnd = cal.date(byAdding: .day, value: 10, to: now)!
+        let earlierWindow = SeasonalWindow(
+            startMonth: cal.component(.month, from: earlierStart),
+            startDay: cal.component(.day, from: earlierStart),
+            endMonth: cal.component(.month, from: earlierEnd),
+            endDay: cal.component(.day, from: earlierEnd)
+        )
+        let laterStart = cal.date(byAdding: .day, value: 30, to: now)!
+        let laterEnd = cal.date(byAdding: .day, value: 35, to: now)!
+        let laterWindow = SeasonalWindow(
+            startMonth: cal.component(.month, from: laterStart),
+            startDay: cal.component(.day, from: laterStart),
+            endMonth: cal.component(.month, from: laterEnd),
+            endDay: cal.component(.day, from: laterEnd)
+        )
+        var item = MaintenanceItem(name: "Lawn", scheduleKind: .seasonal,
+                                   seasonalWindow: SeasonalWindow(startMonth: 1, startDay: 1, endMonth: 12, endDay: 31))
+        item.subEvents = [
+            SubEvent(name: "Later", seasonalWindow: laterWindow),
+            SubEvent(name: "Earlier", seasonalWindow: earlierWindow),
+        ]
+        let svc = SchedulingService(items: [item], logEntries: [])
+        let due = svc.nextDueDate(for: item)
+        #expect(svc.daysUntilDue(item) <= 5)
+        #expect(due < laterStart)
+    }
+
+    @Test("isOverdue is true if any sub-event is overdue")
+    func overdueIfAnySubEventOverdue() {
+        let cal = Calendar.current
+        let now = Date.now
+        let pastStart = cal.date(byAdding: .day, value: -14, to: now)!
+        let pastEnd = cal.date(byAdding: .day, value: -7, to: now)!
+        let pastWindow = SeasonalWindow(
+            startMonth: cal.component(.month, from: pastStart),
+            startDay: cal.component(.day, from: pastStart),
+            endMonth: cal.component(.month, from: pastEnd),
+            endDay: cal.component(.day, from: pastEnd)
+        )
+        var item = MaintenanceItem(name: "Lawn", scheduleKind: .seasonal,
+                                   seasonalWindow: SeasonalWindow(startMonth: 1, startDay: 1, endMonth: 12, endDay: 31))
+        item.subEvents = [SubEvent(name: "Missed", seasonalWindow: pastWindow)]
+        let svc = SchedulingService(items: [item], logEntries: [])
+        #expect(svc.isOverdue(item))
+    }
+
+    @Test("entriesDueInRange returns one entry per sub-event")
+    func entriesExpandsSubEvents() {
+        let cal = Calendar.current
+        let now = Date.now
+        let inRange = cal.date(byAdding: .day, value: 10, to: now)!
+        let inRangeEnd = cal.date(byAdding: .day, value: 12, to: now)!
+        let window = SeasonalWindow(
+            startMonth: cal.component(.month, from: inRange),
+            startDay: cal.component(.day, from: inRange),
+            endMonth: cal.component(.month, from: inRangeEnd),
+            endDay: cal.component(.day, from: inRangeEnd)
+        )
+        var item = MaintenanceItem(name: "Lawn", scheduleKind: .seasonal,
+                                   seasonalWindow: SeasonalWindow(startMonth: 1, startDay: 1, endMonth: 12, endDay: 31))
+        item.subEvents = [
+            SubEvent(name: "A", seasonalWindow: window),
+            SubEvent(name: "B", seasonalWindow: window),
+        ]
+        let svc = SchedulingService(items: [item], logEntries: [])
+        let rangeEnd = cal.date(byAdding: .day, value: 30, to: now)!
+        let entries = svc.entriesDueInRange(start: now, end: rangeEnd)
+        #expect(entries.count == 2)
+        #expect(entries.allSatisfy { $0.subEvent != nil })
+    }
+
+    @Test("entriesDueInRange returns single item entry when no sub-events")
+    func entriesPlainItem() {
+        let cal = Calendar.current
+        let now = Date.now
+        let inRange = cal.date(byAdding: .day, value: 10, to: now)!
+        let inRangeEnd = cal.date(byAdding: .day, value: 12, to: now)!
+        let window = SeasonalWindow(
+            startMonth: cal.component(.month, from: inRange),
+            startDay: cal.component(.day, from: inRange),
+            endMonth: cal.component(.month, from: inRangeEnd),
+            endDay: cal.component(.day, from: inRangeEnd)
+        )
+        let item = MaintenanceItem(name: "Plain", scheduleKind: .seasonal, seasonalWindow: window)
+        let svc = SchedulingService(items: [item], logEntries: [])
+        let rangeEnd = cal.date(byAdding: .day, value: 30, to: now)!
+        let entries = svc.entriesDueInRange(start: now, end: rangeEnd)
+        #expect(entries.count == 1)
+        #expect(entries[0].subEvent == nil)
     }
 }

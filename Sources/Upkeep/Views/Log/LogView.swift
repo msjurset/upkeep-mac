@@ -67,9 +67,16 @@ struct LogEntryRow: View {
     let entry: LogEntry
     var showItemName: Bool = true
 
+    private var iconName: String {
+        if let id = entry.itemID, let item = store.items.first(where: { $0.id == id }) {
+            return item.effectiveIcon
+        }
+        return entry.category.icon
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: entry.category.icon)
+            Image(systemName: iconName)
                 .font(.body)
                 .foregroundStyle(Color.categoryColor(entry.category))
                 .frame(width: 24)

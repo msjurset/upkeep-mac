@@ -61,6 +61,9 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var startDate: Date
     var notes: String
     var vendorID: UUID?
+    /// The household member who facilitates / leads this item. Optional —
+    /// nil means unassigned. Only displayed in the item editor for now.
+    var ownerID: UUID?
     var supply: Supply?
     var tags: [String]
     var customIcon: String?
@@ -69,6 +72,10 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var skippedYear: Int?
     var snoozedUntil: Date?
     var followUps: [FollowUp]
+    /// Optional timed sub-tasks. When non-empty, the calendar/dashboard
+    /// expand the item into one entry per sub-event; the item-level schedule
+    /// becomes a fallback used only when this array is empty.
+    var subEvents: [SubEvent]
     var isActive: Bool
     var version: Int
     var lastModifiedBy: UUID?
@@ -79,11 +86,12 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          priority: Priority = .medium, scheduleKind: ScheduleKind? = nil,
          frequencyInterval: Int = 1,
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
-         notes: String = "", vendorID: UUID? = nil, supply: Supply? = nil,
+         notes: String = "", vendorID: UUID? = nil, ownerID: UUID? = nil, supply: Supply? = nil,
          tags: [String] = [], customIcon: String? = nil,
          attachments: [Attachment] = [],
          seasonalWindow: SeasonalWindow? = nil,
          skippedYear: Int? = nil, snoozedUntil: Date? = nil, followUps: [FollowUp] = [],
+         subEvents: [SubEvent] = [],
          isActive: Bool = true,
          version: Int = 1, lastModifiedBy: UUID? = nil,
          createdAt: Date = .now, updatedAt: Date = .now) {
@@ -97,6 +105,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.startDate = startDate
         self.notes = notes
         self.vendorID = vendorID
+        self.ownerID = ownerID
         self.supply = supply
         self.tags = tags
         self.customIcon = customIcon
@@ -105,6 +114,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         self.skippedYear = skippedYear
         self.snoozedUntil = snoozedUntil
         self.followUps = followUps
+        self.subEvents = subEvents
         self.isActive = isActive
         self.version = version
         self.lastModifiedBy = lastModifiedBy
@@ -123,6 +133,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         startDate = try container.decode(Date.self, forKey: .startDate)
         notes = try container.decode(String.self, forKey: .notes)
         vendorID = try container.decodeIfPresent(UUID.self, forKey: .vendorID)
+        ownerID = try container.decodeIfPresent(UUID.self, forKey: .ownerID)
         supply = try container.decodeIfPresent(Supply.self, forKey: .supply)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         customIcon = try container.decodeIfPresent(String.self, forKey: .customIcon)
@@ -131,6 +142,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
         skippedYear = try container.decodeIfPresent(Int.self, forKey: .skippedYear)
         snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
         followUps = try container.decodeIfPresent([FollowUp].self, forKey: .followUps) ?? []
+        subEvents = try container.decodeIfPresent([SubEvent].self, forKey: .subEvents) ?? []
         isActive = try container.decode(Bool.self, forKey: .isActive)
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
         lastModifiedBy = try container.decodeIfPresent(UUID.self, forKey: .lastModifiedBy)
@@ -175,7 +187,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
             return "Idea"
         case .recurring:
             if frequencyInterval == 1 {
-                return "Every \(frequencyUnit.singular)"
+                return "Every \(frequencyUnit.singular.lowercased())"
             }
             return "Every \(frequencyInterval) \(frequencyUnit.label.lowercased())"
         }

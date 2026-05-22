@@ -11,6 +11,6 @@ enum FrequencyUnit: String, Codable, CaseIterable, Identifiable, Sendable {
     var label: String { rawValue.capitalized }
 
     var singular: String {
-        String(rawValue.dropLast())
+        String(label.dropLast())
     }
 }

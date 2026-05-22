@@ -5,6 +5,13 @@ struct LogEntrySheet: View {
 
     let entry: LogEntry?
     let itemID: UUID?
+    let subEventID: UUID?
+
+    init(entry: LogEntry? = nil, itemID: UUID? = nil, subEventID: UUID? = nil) {
+        self.entry = entry
+        self.itemID = itemID
+        self.subEventID = subEventID
+    }
 
     @State private var title = ""
     @State private var category: MaintenanceCategory = .other
@@ -14,16 +21,35 @@ struct LogEntrySheet: View {
     @State private var performedBy = ""
     @State private var rating: Int = 0
     @State private var selectedItemID: UUID?
-    @State private var markComplete = true
+    @State private var countsAsCompletion = true
 
     private var isEditing: Bool { entry != nil }
     private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
-    private var linkedToDo: MaintenanceItem? {
-        let id = itemID ?? selectedItemID ?? entry?.itemID
-        guard let id else { return nil }
-        guard let item = store.items.first(where: { $0.id == id }), item.isOneTime else { return nil }
+    /// Item this entry is linked to whose schedule (or to-do active state)
+    /// is affected by `countsAsCompletion`. Idea items have no schedule, so
+    /// the toggle is hidden for them. Unlinked entries have nothing to affect.
+    private var scheduledItem: MaintenanceItem? {
+        guard let item = linkedItem, !item.isIdea else { return nil }
         return item
+    }
+
+    private var linkedToDo: MaintenanceItem? {
+        guard let item = linkedItem, item.isOneTime else { return nil }
+        return item
+    }
+
+    private var linkedSubEvent: SubEvent? {
+        let resolvedSubID = subEventID ?? entry?.subEventID
+        guard let subID = resolvedSubID else { return nil }
+        guard let item = linkedItem else { return nil }
+        return item.subEvents.first(where: { $0.id == subID })
+    }
+
+    private var linkedItem: MaintenanceItem? {
+        let resolvedItemID = itemID ?? entry?.itemID ?? selectedItemID
+        guard let id = resolvedItemID else { return nil }
+        return store.items.first(where: { $0.id == id })
     }
 
     var body: some View {
@@ -51,6 +77,22 @@ struct LogEntrySheet: View {
                         }
                     }
 
+                    if let linkedSub = linkedSubEvent, let parentItem = linkedItem {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link")
+                                .font(.caption)
+                                .foregroundStyle(.upkeepAmber)
+                            Text(parentItem.name)
+                                .font(.caption.weight(.medium))
+                            Text("›")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(linkedSub.name.isEmpty ? "(unnamed)" : linkedSub.name)
+                                .font(.caption.weight(.medium))
+                        }
+                        .padding(.vertical, 2)
+                    }
+
                     LeadingTextFieldCore(text: $title, prompt: "Work summary (5–7 words or less)")
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -69,7 +111,7 @@ struct LogEntrySheet: View {
                     }
                 }
 
-                Section("Details") {
+                Section {
                     LabeledContent("Date completed") {
                         HStack(spacing: 6) {
                             StepperDateField(selection: $completedDate)
@@ -95,12 +137,10 @@ struct LogEntrySheet: View {
                     }
                 }
 
-                if !isEditing, linkedToDo != nil {
+                if let scheduled = scheduledItem {
                     Section {
-                        Toggle("Mark to-do as complete", isOn: $markComplete)
-                        Text(markComplete
-                             ? "Uncheck to log progress without finishing the to-do."
-                             : "Progress will be logged; the to-do stays active.")
+                        Toggle(completionToggleLabel(for: scheduled), isOn: $countsAsCompletion)
+                        Text(completionToggleHelp(for: scheduled, isOn: countsAsCompletion))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -116,6 +156,7 @@ struct LogEntrySheet: View {
                 performedBy = entry.performedBy
                 rating = entry.rating ?? 0
                 selectedItemID = entry.itemID
+                countsAsCompletion = entry.countsAsCompletion
                 if let cost = entry.cost {
                     costString = "\(cost)"
                 }
@@ -124,8 +165,13 @@ struct LogEntrySheet: View {
                 if let itemID {
                     selectedItemID = itemID
                     if let item = store.items.first(where: { $0.id == itemID }) {
-                        title = item.name
                         category = item.category
+                        if let subEventID, let sub = item.subEvents.first(where: { $0.id == subEventID }) {
+                            let subName = sub.name.trimmingCharacters(in: .whitespaces)
+                            title = subName.isEmpty ? item.name : "\(item.name) — \(subName)"
+                        } else {
+                            title = item.name
+                        }
                     }
                 }
             }
@@ -147,13 +193,29 @@ struct LogEntrySheet: View {
             existing.performedBy = performedBy
             existing.rating = ratingValue
             existing.itemID = resolvedItemID
+            existing.countsAsCompletion = countsAsCompletion
             store.updateLogEntry(existing)
         } else {
             store.logCompletion(
-                itemID: resolvedItemID, title: trimmedTitle, category: category,
+                itemID: resolvedItemID, subEventID: subEventID, title: trimmedTitle, category: category,
                 date: completedDate, notes: notes, cost: cost, performedBy: performedBy,
-                rating: ratingValue, markComplete: markComplete
+                rating: ratingValue, countsAsCompletion: countsAsCompletion
             )
         }
+    }
+
+    private func completionToggleLabel(for item: MaintenanceItem) -> String {
+        item.isOneTime ? "Mark to-do as complete" : "Counts as completion"
+    }
+
+    private func completionToggleHelp(for item: MaintenanceItem, isOn: Bool) -> String {
+        if item.isOneTime {
+            return isOn
+                ? "Uncheck to log progress without finishing the to-do."
+                : "Progress will be logged; the to-do stays active."
+        }
+        return isOn
+            ? "Uncheck to log progress without resetting the next-due date."
+            : "Progress will be logged; the schedule does not advance."
     }
 }

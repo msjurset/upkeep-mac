@@ -6,13 +6,20 @@ struct LogEntryDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirm = false
 
+    private var headerIconName: String {
+        if let id = entry.itemID, let item = store.items.first(where: { $0.id == id }) {
+            return item.effectiveIcon
+        }
+        return entry.category.icon
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 10) {
-                        Image(systemName: entry.category.icon)
+                        Image(systemName: headerIconName)
                             .font(.title)
                             .foregroundStyle(Color.categoryColor(entry.category))
 
@@ -87,6 +94,14 @@ struct LogEntryDetailView: View {
                                         .foregroundStyle(Color.categoryColor(item.category))
                                     Text(item.name)
                                         .font(.body.weight(.medium))
+                                    if let subID = entry.subEventID,
+                                       let sub = item.subEvents.first(where: { $0.id == subID }) {
+                                        Text("›")
+                                            .font(.body)
+                                            .foregroundStyle(.secondary)
+                                        Text(sub.name.isEmpty ? "(unnamed)" : sub.name)
+                                            .font(.body.weight(.medium))
+                                    }
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.caption)

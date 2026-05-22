@@ -3,7 +3,9 @@ import Sparkle
 
 @main
 struct UpkeepApp: App {
+    @NSApplicationDelegateAdaptor(UpkeepAppDelegate.self) private var appDelegate
     @State private var store = UpkeepStore()
+    @State private var weather = WeatherStore()
     @Environment(\.openWindow) private var openWindow
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -13,17 +15,27 @@ struct UpkeepApp: App {
                 if store.needsOnboarding {
                     OnboardingView()
                         .environment(store)
+                        .environment(weather)
                 } else {
                     ContentView()
                         .environment(store)
+                        .environment(weather)
                 }
             }
             .preferredColorScheme(store.colorScheme)
+            .tint(.upkeepAmber)
             .onAppear {
                 store.startBackgroundRefresh()
+                weather.startBackgroundRefresh()
+                Task {
+                    if let profile = try? await store.loadHomeProfile() {
+                        weather.applyLocation(latitude: profile.latitude, longitude: profile.longitude)
+                    }
+                }
             }
             .onDisappear {
                 store.stopBackgroundRefresh()
+                weather.stopBackgroundRefresh()
             }
         }
         .defaultSize(width: 1300, height: 750)
@@ -42,6 +54,7 @@ struct UpkeepApp: App {
         Settings {
             SettingsView()
                 .environment(store)
+                .environment(weather)
                 .preferredColorScheme(store.colorScheme)
         }
 

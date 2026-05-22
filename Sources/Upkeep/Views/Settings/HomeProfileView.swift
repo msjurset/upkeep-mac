@@ -1,16 +1,47 @@
 import SwiftUI
+import CoreLocation
 
 struct HomeProfileView: View {
     @Environment(UpkeepStore.self) private var store
+    @Environment(WeatherStore.self) private var weather
     @State private var profile = HomeProfile()
     @State private var loaded = false
     @State private var showAddSystem = false
     @State private var editingSystemID: UUID?
+    @State private var geocodingState: GeocodingState = .idle
+    @State private var geocodeTask: Task<Void, Never>?
+
+    enum GeocodingState: Equatable {
+        case idle
+        case geocoding
+        case success
+        case failed(String)
+    }
 
     var body: some View {
         Form {
             Section("Property") {
                 LeadingTextField(label: "Address", text: $profile.address)
+
+                // Geocoding status row — shows the cached coordinates and a manual refresh button.
+                HStack(spacing: 8) {
+                    Image(systemName: locationIcon)
+                        .foregroundStyle(locationTint)
+                        .font(.caption)
+                    Text(locationStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if geocodingState == .geocoding {
+                        ProgressView().controlSize(.small)
+                    } else if !profile.address.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Button("Refresh") {
+                            geocodeNow()
+                        }
+                        .controlSize(.small)
+                        .help("Re-geocode this address")
+                    }
+                }
 
                 HStack {
                     Text("Year Built")
@@ -83,6 +114,10 @@ struct HomeProfileView: View {
             guard loaded else { return }
             Task { try? await store.saveHomeProfile(newProfile) }
         }
+        .onChange(of: profile.address) { _, _ in
+            guard loaded else { return }
+            scheduleGeocode()
+        }
         .sheet(isPresented: $showAddSystem) {
             SystemEditorSheet { system in
                 profile.systems.append(system)
@@ -100,6 +135,88 @@ struct HomeProfileView: View {
                     profile.systems.remove(at: index)
                 })
             }
+        }
+    }
+
+    // MARK: - Geocoding
+
+    private var locationIcon: String {
+        switch geocodingState {
+        case .idle:
+            return profile.hasCoordinates ? "location.fill" : "location.slash"
+        case .geocoding: return "location"
+        case .success: return "location.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var locationTint: Color {
+        switch geocodingState {
+        case .idle:
+            return profile.hasCoordinates ? .upkeepGreen : .secondary
+        case .geocoding: return .secondary
+        case .success: return .upkeepGreen
+        case .failed: return .upkeepAmber
+        }
+    }
+
+    private var locationStatusText: String {
+        switch geocodingState {
+        case .geocoding: return "Looking up coordinates..."
+        case .failed(let msg): return msg
+        case .idle, .success:
+            if let lat = profile.latitude, let lon = profile.longitude {
+                return String(format: "%.4f°, %.4f° (used for weather)", lat, lon)
+            }
+            return "Add an address to enable weather forecasts."
+        }
+    }
+
+    private func scheduleGeocode() {
+        geocodeTask?.cancel()
+        let address = profile.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else {
+            geocodingState = .idle
+            profile.latitude = nil
+            profile.longitude = nil
+            profile.geocodedAddress = nil
+            return
+        }
+        guard profile.needsGeocoding else {
+            geocodingState = .idle
+            return
+        }
+        geocodeTask = Task {
+            try? await Task.sleep(nanoseconds: 800_000_000) // debounce typing
+            if Task.isCancelled { return }
+            await runGeocode(address: address)
+        }
+    }
+
+    private func geocodeNow() {
+        geocodeTask?.cancel()
+        let address = profile.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else { return }
+        geocodeTask = Task { await runGeocode(address: address) }
+    }
+
+    @MainActor
+    private func runGeocode(address: String) async {
+        geocodingState = .geocoding
+        do {
+            let placemarks = try await CLGeocoder().geocodeAddressString(address)
+            guard let loc = placemarks.first?.location else {
+                geocodingState = .failed("Couldn't find that address.")
+                return
+            }
+            profile.latitude = loc.coordinate.latitude
+            profile.longitude = loc.coordinate.longitude
+            profile.geocodedAddress = address
+            geocodingState = .success
+            // Refresh weather immediately so the dashboard widget updates.
+            weather.applyLocation(latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude)
+        } catch {
+            geocodingState = .failed("Lookup failed: \(error.localizedDescription)")
         }
     }
 

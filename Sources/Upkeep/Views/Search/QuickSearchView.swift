@@ -123,6 +123,7 @@ struct QuickSearchView: View {
                                     .fill(idx == resultActiveIndex ? Color.accentColor.opacity(0.2) : .clear)
                                     .padding(.horizontal, -4)
                             )
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .id(result.id)
@@ -336,10 +337,22 @@ struct SearchKeyMonitor: NSViewRepresentable {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self else { return event }
 
-                // "/" without modifiers (only when no text field active)
+                // "/" without modifiers. Fire global search when:
+                //   - no text field is focused, OR
+                //   - a text field is focused but empty (catches the
+                //     first-load case where the list-filter field has
+                //     initial focus and "/" should still mean "open
+                //     search," not insert a literal slash into nothing)
+                // ...AND we're not inside a sheet. The sheet guard is
+                // important: an empty notes/title field inside a Log
+                // Maintenance / Item Editor sheet must keep "/" literal
+                // so the user can type a slash as the first character,
+                // and so dismissing the sheet doesn't reveal a search
+                // panel that opened behind it.
                 if event.charactersIgnoringModifiers == "/" &&
                    event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [] {
-                    if !self.isTextFieldActive {
+                    if !Self.isInSheet(for: event) &&
+                       (!Self.isTextFieldActive(for: event) || Self.isFocusedFieldEmpty(for: event)) {
                         DispatchQueue.main.async { self.onSearch?() }
                         return nil
                     }
@@ -349,9 +362,29 @@ struct SearchKeyMonitor: NSViewRepresentable {
             }
         }
 
-        private var isTextFieldActive: Bool {
-            guard let firstResponder = window?.firstResponder else { return false }
-            return firstResponder is NSTextView || firstResponder is NSTextField
+        private static func isTextFieldActive(for event: NSEvent) -> Bool {
+            let responder = event.window?.firstResponder ?? NSApp.keyWindow?.firstResponder
+            return responder is NSTextView || responder is NSTextField
+        }
+
+        private static func isFocusedFieldEmpty(for event: NSEvent) -> Bool {
+            let responder = event.window?.firstResponder ?? NSApp.keyWindow?.firstResponder
+            if let tv = responder as? NSTextView {
+                return tv.string.isEmpty
+            }
+            if let tf = responder as? NSTextField {
+                return tf.stringValue.isEmpty
+            }
+            if let editor = responder as? NSText,
+               let field = editor.delegate as? NSTextField {
+                return field.stringValue.isEmpty
+            }
+            return false
+        }
+
+        private static func isInSheet(for event: NSEvent) -> Bool {
+            let window = event.window ?? NSApp.keyWindow
+            return window?.sheetParent != nil
         }
 
         override func removeFromSuperview() {

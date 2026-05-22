@@ -2,6 +2,8 @@
 .swiftpm/
 Upkeep.app/
 AppIcon.icns
+AppIcon.icns.bak
+Resources/
 *.xcodeproj/
 xcuserdata/
 DerivedData/

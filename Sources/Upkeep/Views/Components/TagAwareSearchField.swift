@@ -11,7 +11,7 @@ struct TagAwareSearchField: NSViewRepresentable {
     let onAccept: () -> Void
 
     func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField()
+        let field = NoAutoFillTextField()
         field.placeholderString = placeholder
         field.isBordered = false
         field.drawsBackground = false
@@ -19,7 +19,6 @@ struct TagAwareSearchField: NSViewRepresentable {
         field.focusRingType = .none
         field.font = .systemFont(ofSize: NSFont.systemFontSize)
         field.delegate = context.coordinator
-        // Disable macOS field-editor autofill popups per project rules
         field.cell?.usesSingleLineMode = true
         return field
     }
