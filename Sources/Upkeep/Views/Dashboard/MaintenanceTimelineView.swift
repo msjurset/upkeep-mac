@@ -298,6 +298,90 @@ struct MaintenanceTimelineView: View {
             }
             .buttonStyle(.plain)
         }
+        .contextMenu {
+            if isCompleted {
+                Button("View Details") {
+                    navigateTo(entry)
+                }
+                if let itemID = entry.itemID,
+                   store.items.contains(where: { $0.id == itemID }) {
+                    Button("View Linked Item") {
+                        store.recordHistory()
+                        store.selectedItemID = itemID
+                        store.navigation = .inventoryAll
+                    }
+                }
+                Divider()
+                if let logID = entry.logEntryID {
+                    Button("Delete Log Entry", role: .destructive) {
+                        store.deleteLogEntry(id: logID)
+                    }
+                }
+            } else if entry.kind == .upcoming || entry.kind == .overdue {
+                if let itemID = entry.itemID,
+                   let item = store.items.first(where: { $0.id == itemID }) {
+                    Button("View Details") {
+                        navigateTo(entry)
+                    }
+                    
+                    Divider()
+                    
+                    Button("Log Completion") {
+                        store.logCompletion(
+                            itemID: item.id, title: item.name,
+                            category: item.category, performedBy: "Self"
+                        )
+                    }
+                    
+                    Button("Snooze 7 Days") {
+                        store.snoozeItem(id: item.id, days: 7)
+                    }
+                    
+                    if item.isSeasonal {
+                        Button("Skip This Year") {
+                            store.skipYear(id: item.id)
+                        }
+                    }
+                    
+                    Button(item.isActive ? "Deactivate" : "Activate") {
+                        var updated = item
+                        updated.isActive.toggle()
+                        store.updateItem(updated, actionName: item.isActive ? "Deactivate" : "Activate")
+                    }
+                    
+                    Divider()
+                    
+                    if item.vendorID == nil {
+                        Button("Find a Vendor…") {
+                            store.recordHistory()
+                            store.createSourcing(
+                                title: "Vendor for \(item.name)",
+                                linkedItemIDs: [item.id]
+                            )
+                            store.navigation = .vendors
+                            store.vendorsTab = .sourcings
+                        }
+                    } else {
+                        Button("Replace Vendor…") {
+                            store.recordHistory()
+                            store.createSourcing(
+                                title: "Replace vendor for \(item.name)",
+                                linkedItemIDs: [item.id],
+                                replacingVendorID: item.vendorID
+                            )
+                            store.navigation = .vendors
+                            store.vendorsTab = .sourcings
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Button("Delete", role: .destructive) {
+                        store.deleteItem(id: item.id)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Now Divider
