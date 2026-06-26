@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(UpkeepStore.self) private var store
+    @Environment(\.openURL) private var openURL
     @State private var showLogSheet = false
     @State private var quickLogItemID: UUID?
 
@@ -272,6 +273,22 @@ struct DashboardView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("View Details") {
+                            store.recordHistory()
+                            store.navigation = .inventoryAll
+                            store.selectedItemID = item.id
+                        }
+                        Button("Dismiss Reminder") {
+                            store.dismissReorderAlert(itemID: item.id)
+                        }
+                        if !supply.productURL.isEmpty,
+                           let url = URL(string: supply.productURL) {
+                            Button("Order Online") {
+                                openURL(url)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -330,6 +347,16 @@ struct DashboardView: View {
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 8).fill(.background))
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
+                    .contextMenu {
+                        Button(followUp.isDone ? "Mark Incomplete" : "Mark Complete") {
+                            store.toggleFollowUp(itemID: item.id, followUpID: followUp.id)
+                        }
+                        Button("View Details") {
+                            store.recordHistory()
+                            store.navigation = .inventoryAll
+                            store.selectedItemID = item.id
+                        }
+                    }
                 }
             }
         }
@@ -393,6 +420,7 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
                 .pointerCursor()
+                .sourcingContextMenu(sourcing: sourcing, store: store)
             }
         }
     }
@@ -447,6 +475,7 @@ struct DashboardView: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 8).fill(.background))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
+                .itemContextMenu(item: item, store: store)
             }
             if store.overdueItems.count > 5 {
                 moreButton(count: store.overdueItems.count - 5, destination: .inventoryOverdue)
@@ -525,6 +554,7 @@ struct DashboardView: View {
                                                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.categoryColor(item.category).opacity(0.08)))
                                             }
                                             .buttonStyle(.plain)
+                                            .itemContextMenu(item: item, store: store)
                                         }
                                     }
                                 }
@@ -602,6 +632,7 @@ struct DashboardView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
                             }
                             .buttonStyle(.plain)
+                            .itemContextMenu(item: item, store: store)
                         }
                     }
                 }
@@ -680,6 +711,7 @@ struct DashboardView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .itemContextMenu(item: item, store: store)
             }
             if store.ideaItems.count > 5 {
                 moreButton(count: store.ideaItems.count - 5, destination: .inventoryIdeas)
@@ -693,6 +725,7 @@ struct DashboardView: View {
         sectionView(title: "Recent Activity", icon: "book", tint: .upkeepGreen) {
             ForEach(store.recentLogEntries.prefix(4)) { entry in
                 dashboardLogRow(entry)
+                    .logEntryContextMenu(entry: entry, store: store)
             }
             if store.recentLogEntries.count > 4 {
                 moreButton(count: store.recentLogEntries.count - 4, destination: .log)
@@ -910,5 +943,120 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
+    }
+}
+
+// MARK: - Context Menu Extensions
+
+extension View {
+    @ViewBuilder
+    func itemContextMenu(item: MaintenanceItem, store: UpkeepStore) -> some View {
+        self.contextMenu {
+            Button("View Details") {
+                store.recordHistory()
+                store.selectedItemID = item.id
+                store.navigation = .inventoryAll
+            }
+            
+            Divider()
+            
+            Button("Log Completion") {
+                store.logCompletion(
+                    itemID: item.id, title: item.name,
+                    category: item.category, performedBy: "Self"
+                )
+            }
+            
+            Button("Snooze 7 Days") {
+                store.snoozeItem(id: item.id, days: 7)
+            }
+            
+            if item.isSeasonal {
+                Button("Skip This Year") {
+                    store.skipYear(id: item.id)
+                }
+            }
+            
+            Button(item.isActive ? "Deactivate" : "Activate") {
+                var updated = item
+                updated.isActive.toggle()
+                store.updateItem(updated, actionName: item.isActive ? "Deactivate" : "Activate")
+            }
+            
+            Divider()
+            
+            if item.vendorID == nil {
+                Button("Find a Vendor…") {
+                    store.recordHistory()
+                    store.createSourcing(
+                        title: "Vendor for \(item.name)",
+                        linkedItemIDs: [item.id]
+                    )
+                    store.navigation = .vendors
+                    store.vendorsTab = .sourcings
+                }
+            } else {
+                Button("Replace Vendor…") {
+                    store.recordHistory()
+                    store.createSourcing(
+                        title: "Replace vendor for \(item.name)",
+                        linkedItemIDs: [item.id],
+                        replacingVendorID: item.vendorID
+                    )
+                    store.navigation = .vendors
+                    store.vendorsTab = .sourcings
+                }
+            }
+            
+            Divider()
+            
+            Button("Delete", role: .destructive) {
+                store.deleteItem(id: item.id)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    func logEntryContextMenu(entry: LogEntry, store: UpkeepStore) -> some View {
+        self.contextMenu {
+            Button("View Details") {
+                store.recordHistory()
+                store.selectedLogEntryID = entry.id
+                store.navigation = .log
+            }
+            
+            if let itemID = entry.itemID,
+               store.items.contains(where: { $0.id == itemID }) {
+                Button("View Linked Item") {
+                    store.recordHistory()
+                    store.selectedItemID = itemID
+                    store.navigation = .inventoryAll
+                }
+            }
+            
+            Divider()
+            
+            Button("Delete Log Entry", role: .destructive) {
+                store.deleteLogEntry(id: entry.id)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    func sourcingContextMenu(sourcing: Sourcing, store: UpkeepStore) -> some View {
+        self.contextMenu {
+            Button("View Details") {
+                store.recordHistory()
+                store.navigation = .vendors
+                store.vendorsTab = .sourcings
+                store.selectedSourcingID = sourcing.id
+            }
+            
+            Divider()
+            
+            Button("Delete Sourcing", role: .destructive) {
+                store.deleteSourcing(id: sourcing.id)
+            }
+        }
     }
 }
