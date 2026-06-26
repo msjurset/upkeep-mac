@@ -263,6 +263,7 @@ struct WeatherDetailSheet: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .focusable(false)
             }
             .padding()
 
@@ -453,6 +454,7 @@ struct WeatherDetailSheet: View {
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
+                    .focusable(false)
             }
             .padding()
         }
