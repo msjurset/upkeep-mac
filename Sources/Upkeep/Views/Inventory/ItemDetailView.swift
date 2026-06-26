@@ -112,7 +112,14 @@ struct ItemDetailView: View {
                 AttachmentsSection(
                     attachments: item.attachments,
                     onAdd: { store.addAttachmentToItem(itemID: item.id, $0) },
-                    onRemove: { store.removeAttachmentFromItem(itemID: item.id, attachmentID: $0) }
+                    onRemove: { store.removeAttachmentFromItem(itemID: item.id, attachmentID: $0) },
+                    onUpdate: { updated in
+                        var copy = item
+                        if let idx = copy.attachments.firstIndex(where: { $0.id == updated.id }) {
+                            copy.attachments[idx] = updated
+                            store.updateItem(copy)
+                        }
+                    }
                 )
                 .padding(20)
                 Divider()
@@ -141,7 +148,11 @@ struct ItemDetailView: View {
                 Button {
                     showLogSheet = true
                 } label: {
-                    Label("Log Completion", systemImage: "checkmark.circle")
+                    Label {
+                        Text("Log Completion")
+                    } icon: {
+                        LogCompletionIcon()
+                    }
                 }
                 .help("Log maintenance completion")
 

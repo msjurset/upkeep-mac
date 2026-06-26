@@ -15,10 +15,13 @@ struct DailyForecast: Identifiable, Sendable, Hashable {
     let windGustMph: Double
     let humidity: Int
     let uvIndex: Double
+    let sunrise: Date?
+    let sunset: Date?
 
     init(date: Date, highF: Double, lowF: Double, feelsLikeHighF: Double = 0, feelsLikeLowF: Double = 0,
          weatherCode: Int, precipitationInches: Double = 0, precipitationProbability: Int = 0,
-         windSpeedMph: Double = 0, windGustMph: Double = 0, humidity: Int = 0, uvIndex: Double = 0) {
+         windSpeedMph: Double = 0, windGustMph: Double = 0, humidity: Int = 0, uvIndex: Double = 0,
+         sunrise: Date? = nil, sunset: Date? = nil) {
         self.id = UUID()
         self.date = date
         self.highF = highF
@@ -32,6 +35,8 @@ struct DailyForecast: Identifiable, Sendable, Hashable {
         self.windGustMph = windGustMph
         self.humidity = humidity
         self.uvIndex = uvIndex
+        self.sunrise = sunrise
+        self.sunset = sunset
     }
 
     var condition: String { WeatherCode.description(for: weatherCode) }
@@ -58,9 +63,12 @@ struct HourlyForecast: Identifiable, Sendable, Hashable {
     let precipitationInches: Double
     let windSpeedMph: Double
     let windGustMph: Double
+    let humidity: Int
+    let uvIndex: Double
 
     init(date: Date, tempF: Double, weatherCode: Int, precipitationProbability: Int,
-         precipitationInches: Double, windSpeedMph: Double, windGustMph: Double) {
+         precipitationInches: Double, windSpeedMph: Double, windGustMph: Double,
+         humidity: Int, uvIndex: Double) {
         self.id = UUID()
         self.date = date
         self.tempF = tempF
@@ -69,6 +77,8 @@ struct HourlyForecast: Identifiable, Sendable, Hashable {
         self.precipitationInches = precipitationInches
         self.windSpeedMph = windSpeedMph
         self.windGustMph = windGustMph
+        self.humidity = humidity
+        self.uvIndex = uvIndex
     }
 
     var symbol: String { WeatherCode.sfSymbol(for: weatherCode) }
@@ -101,10 +111,10 @@ actor WeatherService {
             "latitude=\(latitude)&longitude=\(longitude)" +
             "&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min," +
             "weathercode,precipitation_sum,precipitation_probability_max," +
-            "windspeed_10m_max,windgusts_10m_max,relative_humidity_2m_mean,uv_index_max" +
+            "windspeed_10m_max,windgusts_10m_max,relative_humidity_2m_mean,uv_index_max,sunrise,sunset" +
             "&hourly=temperature_2m,weathercode,precipitation,precipitation_probability," +
-            "windspeed_10m,windgusts_10m" +
-            "&forecast_days=14&forecast_hours=48" +
+            "windspeed_10m,windgusts_10m,relative_humidity_2m,uv_index" +
+            "&forecast_days=14" +
             "&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch" +
             "&timezone=auto"
         guard let url = URL(string: urlStr) else { throw WeatherError.invalidURL }
@@ -122,11 +132,19 @@ actor WeatherService {
     private func parseDaily(_ daily: OMDaily?, timezone: String?) -> [DailyForecast] {
         guard let daily else { return [] }
         let tz = timezone.flatMap { TimeZone(identifier: $0) } ?? .current
-        var fmt = dateFormatter
+        let fmt = dateFormatter
         fmt.timeZone = tz
+        let isoFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            f.timeZone = tz
+            return f
+        }()
         var forecasts: [DailyForecast] = []
         for i in 0..<(daily.time?.count ?? 0) {
             guard let dateStr = daily.time?[i], let date = fmt.date(from: dateStr) else { continue }
+            let sunriseDate = (daily.sunrise != nil && i < daily.sunrise!.count) ? isoFormatter.date(from: daily.sunrise![i]) : nil
+            let sunsetDate = (daily.sunset != nil && i < daily.sunset!.count) ? isoFormatter.date(from: daily.sunset![i]) : nil
             forecasts.append(DailyForecast(
                 date: date,
                 highF: daily.temperature_2m_max?[i] ?? 0,
@@ -139,7 +157,9 @@ actor WeatherService {
                 windSpeedMph: daily.windspeed_10m_max?[i] ?? 0,
                 windGustMph: daily.windgusts_10m_max?[i] ?? 0,
                 humidity: daily.relative_humidity_2m_mean?[i] ?? 0,
-                uvIndex: daily.uv_index_max?[i] ?? 0
+                uvIndex: daily.uv_index_max?[i] ?? 0,
+                sunrise: sunriseDate,
+                sunset: sunsetDate
             ))
         }
         return forecasts
@@ -164,7 +184,9 @@ actor WeatherService {
                 precipitationProbability: hourly.precipitation_probability?[i] ?? 0,
                 precipitationInches: hourly.precipitation?[i] ?? 0,
                 windSpeedMph: hourly.windspeed_10m?[i] ?? 0,
-                windGustMph: hourly.windgusts_10m?[i] ?? 0
+                windGustMph: hourly.windgusts_10m?[i] ?? 0,
+                humidity: hourly.relative_humidity_2m?[i] ?? 0,
+                uvIndex: hourly.uv_index?[i] ?? 0
             ))
         }
         return forecasts
@@ -204,6 +226,8 @@ private struct OMDaily: Decodable {
     let windgusts_10m_max: [Double]?
     let relative_humidity_2m_mean: [Int]?
     let uv_index_max: [Double]?
+    let sunrise: [String]?
+    let sunset: [String]?
 }
 
 private struct OMHourly: Decodable {
@@ -214,6 +238,8 @@ private struct OMHourly: Decodable {
     let precipitation_probability: [Int]?
     let windspeed_10m: [Double]?
     let windgusts_10m: [Double]?
+    let relative_humidity_2m: [Int]?
+    let uv_index: [Double]?
 }
 
 // MARK: - WMO Weather Codes

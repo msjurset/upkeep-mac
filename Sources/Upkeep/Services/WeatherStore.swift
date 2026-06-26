@@ -81,6 +81,13 @@ final class WeatherStore {
         return forecast.daily.first { cal.startOfDay(for: $0.date) == target }
     }
 
+    /// The hourly forecasts for a specific date.
+    func hourlyForecast(for date: Date) -> [HourlyForecast] {
+        let cal = Calendar.current
+        let target = cal.startOfDay(for: date)
+        return forecast.hourly.filter { cal.startOfDay(for: $0.date) == target }
+    }
+
     /// The next day in the forecast that is "likely wet". Returns `nil` if no rain in the window.
     var nextWetDay: DailyForecast? {
         forecast.daily.first { $0.isLikelyWet }

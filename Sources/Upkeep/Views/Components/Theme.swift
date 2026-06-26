@@ -266,19 +266,30 @@ struct KindBadge: View {
 
 struct DueDateBadge: View {
     let daysUntilDue: Int
+    var isCompleted: Bool = false
 
     var body: some View {
         Text(label)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.dueDateColor(daysUntilDue).opacity(0.12))
-            .foregroundStyle(Color.dueDateColor(daysUntilDue))
+            .background(backgroundColor.opacity(0.12))
+            .foregroundStyle(backgroundColor)
             .clipShape(Capsule())
     }
 
+    private var backgroundColor: Color {
+        if isCompleted {
+            return .upkeepGreen
+        }
+        return Color.dueDateColor(daysUntilDue)
+    }
+
     private var label: String {
-        DueDateText.badge(days: daysUntilDue)
+        if isCompleted {
+            return "Completed"
+        }
+        return DueDateText.badge(days: daysUntilDue)
     }
 }
 
@@ -327,6 +338,31 @@ struct AddCircleButton: View {
 
 func addButton(action: @escaping @MainActor () -> Void) -> AddCircleButton {
     AddCircleButton(action: action)
+}
+
+// MARK: - Log Completion Icon (Composite)
+
+struct LogCompletionIcon: View {
+    var body: some View {
+        Image(systemName: "list.clipboard.fill")
+            .overlay(alignment: .bottomTrailing) {
+                ZStack {
+                    // Thin outline (slightly larger)
+                    Image(systemName: "wrench.fill")
+                        .font(.system(size: 11).weight(.heavy))
+                        .rotationEffect(.degrees(-90))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .offset(x: 3, y: 3)
+                    
+                    // The "Hole" (matching background)
+                    Image(systemName: "wrench.fill")
+                        .font(.system(size: 9).weight(.heavy))
+                        .rotationEffect(.degrees(-90))
+                        .foregroundStyle(.windowBackground)
+                        .offset(x: 3, y: 3)
+                }
+            }
+    }
 }
 
 // MARK: - List zebra striping

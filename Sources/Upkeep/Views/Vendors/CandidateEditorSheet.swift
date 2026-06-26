@@ -90,6 +90,13 @@ struct CandidateEditorSheet: View {
                                 candidateID: candidate.id,
                                 attachmentID: id
                             )
+                        },
+                        onUpdate: { updated in
+                            var c = liveCandidate ?? candidate
+                            if let idx = c.attachments.firstIndex(where: { $0.id == updated.id }) {
+                                c.attachments[idx] = updated
+                                store.updateCandidate(c, in: sourcingID)
+                            }
                         }
                     )
                 }

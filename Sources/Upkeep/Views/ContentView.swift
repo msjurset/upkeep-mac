@@ -81,7 +81,10 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showNewItemSheet) {
-            ItemEditorSheet(item: nil)
+            ItemEditorSheet(
+                item: nil,
+                initialScheduleKind: store.navigation == .inventoryIdeas ? .idea : .recurring
+            )
         }
         .sheet(isPresented: $showNewLogEntrySheet) {
             LogEntrySheet(entry: nil, itemID: nil)

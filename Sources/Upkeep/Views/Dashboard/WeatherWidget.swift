@@ -5,6 +5,7 @@ struct WeatherWidget: View {
     @Environment(UpkeepStore.self) private var store
     @State private var showDetail = false
     @State private var profileAddress: String = ""
+    @State private var initialDetailDay: DailyForecast?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -12,12 +13,7 @@ struct WeatherWidget: View {
 
             if !weather.forecast.daily.isEmpty {
                 actionableCaption
-
-                Button { showDetail = true } label: {
-                    forecastStrip
-                }
-                .buttonStyle(.plain)
-                .help("Click for full forecast")
+                forecastStrip
             } else if weather.isLoading {
                 HStack {
                     ProgressView().controlSize(.small)
@@ -44,7 +40,7 @@ struct WeatherWidget: View {
             }
         }
         .sheet(isPresented: $showDetail) {
-            WeatherDetailSheet(address: profileAddress)
+            WeatherDetailSheet(address: profileAddress, initialDay: initialDetailDay)
         }
     }
 
@@ -173,7 +169,14 @@ struct WeatherWidget: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(weather.forecast.daily) { day in
-                    dayColumn(day)
+                    Button {
+                        initialDetailDay = day
+                        showDetail = true
+                    } label: {
+                        dayColumn(day)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.vertical, 4)
@@ -234,8 +237,12 @@ struct WeatherWidget: View {
 
 struct WeatherDetailSheet: View {
     let address: String
+    var initialDay: DailyForecast? = nil
     @Environment(WeatherStore.self) private var weather
     @Environment(\.dismiss) private var dismiss
+
+    @State private var popoverDay: DailyForecast?
+    @State private var popoverMetric: HourlyWeatherView.WeatherMetric = .temperature
 
     var body: some View {
         VStack(spacing: 0) {
@@ -265,75 +272,175 @@ struct WeatherDetailSheet: View {
                 VStack(spacing: 0) {
                     ForEach(Array(weather.forecast.daily.enumerated()), id: \.element.id) { index, day in
                         HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(day.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                                    .font(.callout.weight(.medium))
-                                HStack(spacing: 4) {
-                                    Image(systemName: day.symbol)
-                                        .foregroundStyle(day.symbolColor)
-                                        .font(.callout)
-                                    Text(day.condition)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                            // Day & Condition
+                            Button {
+                                popoverMetric = .temperature
+                                popoverDay = day
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(day.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                                        .font(.callout.weight(.medium))
+                                    HStack(spacing: 4) {
+                                        Image(systemName: day.symbol)
+                                            .foregroundStyle(day.symbolColor)
+                                            .font(.callout)
+                                        Text(day.condition)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .frame(width: 160, alignment: .leading)
-
-                            VStack(spacing: 1) {
-                                Text("\(Int(day.highF))°/\(Int(day.lowF))°")
-                                    .font(.callout.weight(.semibold).monospacedDigit())
-                                Text("Feels \(Int(day.feelsLikeHighF))°/\(Int(day.feelsLikeLowF))°")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .temperature) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .temperature
+                                )
                             }
-                            .frame(width: 90)
 
-                            VStack(spacing: 1) {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "drop.fill")
-                                        .font(.caption2)
-                                        .foregroundStyle(.cyan)
-                                    Text("\(day.precipitationProbability)%")
-                                        .font(.caption.monospacedDigit())
-                                }
-                                if day.precipitationInches > 0 {
-                                    Text(String(format: "%.2f\"", day.precipitationInches))
+                            // Temperature
+                            Button {
+                                popoverMetric = .temperature
+                                popoverDay = day
+                            } label: {
+                                VStack(spacing: 1) {
+                                    Text("\(Int(day.highF))°/\(Int(day.lowF))°")
+                                        .font(.callout.weight(.semibold).monospacedDigit())
+                                    Text("Feels \(Int(day.feelsLikeHighF))°/\(Int(day.feelsLikeLowF))°")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                .contentShape(Rectangle())
                             }
-                            .frame(width: 60)
+                            .buttonStyle(.plain)
+                            .frame(width: 90)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .temperature) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .temperature
+                                )
+                            }
 
-                            VStack(spacing: 1) {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "wind")
-                                        .font(.caption2)
-                                    Text("\(Int(day.windSpeedMph))")
-                                        .font(.caption.monospacedDigit())
+                            // Precipitation
+                            Button {
+                                popoverMetric = .precipitation
+                                popoverDay = day
+                            } label: {
+                                VStack(spacing: 1) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "drop.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.cyan)
+                                        Text("\(day.precipitationProbability)%")
+                                            .font(.caption.monospacedDigit())
+                                    }
+                                    if day.precipitationInches > 0 {
+                                        Text(String(format: "%.2f\"", day.precipitationInches))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("0.00\"")
+                                            .font(.caption2)
+                                            .foregroundStyle(.clear) // Keep layout stable
+                                    }
                                 }
-                                Text("gust \(Int(day.windGustMph))")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .frame(width: 60)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .precipitation) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .precipitation
+                                )
+                            }
 
-                            VStack(spacing: 1) {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "humidity.fill")
+                            // Wind
+                            Button {
+                                popoverMetric = .wind
+                                popoverDay = day
+                            } label: {
+                                VStack(spacing: 1) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "wind")
+                                            .font(.caption2)
+                                        Text("\(Int(day.windSpeedMph))")
+                                            .font(.caption.monospacedDigit())
+                                    }
+                                    Text("gust \(Int(day.windGustMph))")
                                         .font(.caption2)
-                                    Text("\(day.humidity)%")
-                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
                                 }
-                                Text("UV \(Int(day.uvIndex))")
-                                    .font(.caption2)
-                                    .foregroundStyle(day.uvIndex >= 6 ? .orange : .secondary)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .frame(width: 60)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .wind) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .wind
+                                )
+                            }
+
+                            // Humidity & UV
+                            Button {
+                                popoverMetric = .humidityUV
+                                popoverDay = day
+                            } label: {
+                                VStack(spacing: 1) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "humidity.fill")
+                                            .font(.caption2)
+                                        Text("\(day.humidity)%")
+                                            .font(.caption.monospacedDigit())
+                                    }
+                                    Text("UV \(Int(day.uvIndex))")
+                                        .font(.caption2)
+                                        .foregroundStyle(day.uvIndex >= 6 ? .orange : .secondary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .frame(width: 60)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .humidityUV) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .humidityUV
+                                )
+                            }
                         }
                         .padding(.vertical, 8)
                         .padding(.horizontal, 16)
-                        .background(index.isMultiple(of: 2) ? Color.secondary.opacity(0.04) : .clear)
+                        .background(index.isMultiple(of: 2) ? Color.secondary.opacity(0.04) : Color.clear)
                     }
+                }
+            }
+            .onAppear {
+                if let initialDay {
+                    popoverDay = initialDay
+                    popoverMetric = .temperature
                 }
             }
 

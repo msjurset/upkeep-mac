@@ -213,7 +213,11 @@ struct SubEventDetailSheet: View {
                 Button {
                     showLogSheet = true
                 } label: {
-                    Label("Log completion", systemImage: "plus.circle")
+                    Label {
+                        Text("Log completion")
+                    } icon: {
+                        LogCompletionIcon()
+                    }
                 }
                 .buttonStyle(.borderless)
             }

@@ -134,7 +134,14 @@ struct LogEntryDetailView: View {
                 AttachmentsSection(
                     attachments: entry.attachments,
                     onAdd: { store.addAttachmentToLog(entryID: entry.id, $0) },
-                    onRemove: { store.removeAttachmentFromLog(entryID: entry.id, attachmentID: $0) }
+                    onRemove: { store.removeAttachmentFromLog(entryID: entry.id, attachmentID: $0) },
+                    onUpdate: { updated in
+                        var copy = entry
+                        if let idx = copy.attachments.firstIndex(where: { $0.id == updated.id }) {
+                            copy.attachments[idx] = updated
+                            store.updateLogEntry(copy)
+                        }
+                    }
                 )
                 .padding(20)
             }

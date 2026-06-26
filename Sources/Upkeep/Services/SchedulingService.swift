@@ -25,6 +25,9 @@ struct SchedulingService: Sendable {
             // Ideas have no due date; far-future sentinel keeps them sorted last in "Due" mode.
             return .distantFuture
         case .oneTime:
+            if !item.isActive || lastCompletion(for: item.id) != nil {
+                return .distantFuture
+            }
             return item.startDate
         case .seasonal:
             if let window = item.seasonalWindow {
@@ -126,7 +129,7 @@ struct SchedulingService: Sendable {
         }
 
         if let last = lastCompletion(for: item.id),
-           last.completedDate >= r.start && last.completedDate <= r.end {
+           last.completedDate >= r.start {
             return .doneForYear
         }
 
@@ -205,7 +208,7 @@ struct SchedulingService: Sendable {
 
         // Completed during this window
         if let last = lastCompletion(for: item.id),
-           last.completedDate >= r.start && last.completedDate <= r.end {
+           last.completedDate >= r.start {
             return r.nextStart
         }
 
@@ -229,7 +232,7 @@ struct SchedulingService: Sendable {
         if item.skippedYear == r.startYear { return false }
 
         if let last = lastCompletion(for: item.id),
-           last.completedDate >= r.start && last.completedDate <= r.end {
+           last.completedDate >= r.start {
             return false
         }
 
@@ -372,18 +375,20 @@ extension SchedulingService {
     /// 12 months" — pragmatic so logs entered before/after the strict window
     /// still credit the cycle. For one-time sub-events any log counts.
     func isCompletedForCurrentPeriod(item: MaintenanceItem, subEvent sub: SubEvent) -> Bool {
-        if sub.seasonalWindow != nil {
-            let cutoff = Calendar.current.date(byAdding: .day, value: -365, to: .now) ?? .distantPast
+        if let window = sub.seasonalWindow {
+            let r = resolveWindow(window)
             return logEntries.contains { entry in
                 entry.itemID == item.id
-                    && entry.subEventID == sub.id
+                    && (entry.subEventID == sub.id || entry.subEventID == nil)
                     && entry.countsAsCompletion
-                    && entry.completedDate >= cutoff
+                    && entry.completedDate >= r.start
             }
         }
         if sub.dueDate != nil {
             return logEntries.contains { entry in
-                entry.itemID == item.id && entry.subEventID == sub.id && entry.countsAsCompletion
+                entry.itemID == item.id
+                    && (entry.subEventID == sub.id || entry.subEventID == nil)
+                    && entry.countsAsCompletion
             }
         }
         return false

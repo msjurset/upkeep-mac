@@ -428,11 +428,13 @@ struct MaintenanceTimelineView: View {
         switch entry.kind {
         case .completed:
             if let logID = entry.logEntryID {
+                store.recordHistory()
                 store.selectedLogEntryID = logID
                 store.navigation = .log
             }
         case .upcoming, .overdue:
             if let itemID = entry.itemID {
+                store.recordHistory()
                 store.selectedItemID = itemID
                 store.navigation = .inventoryAll
             }

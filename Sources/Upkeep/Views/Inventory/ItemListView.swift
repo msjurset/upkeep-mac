@@ -363,9 +363,10 @@ struct ItemRow: View {
                     Color.clear.frame(width: 100, height: 1)
                 } else {
                     let days = store.daysUntilDue(item)
-                    DueDateBadge(daysUntilDue: days)
+                    let isCompleted = item.isOneTime && (store.lastCompletion(for: item.id) != nil || !item.isActive)
+                    DueDateBadge(daysUntilDue: days, isCompleted: isCompleted)
                         .frame(width: 100, alignment: .trailing)
-                        .help("Due \(store.nextDueDate(for: item).shortDate)")
+                        .help(isCompleted ? "Completed" : "Due \(store.nextDueDate(for: item).shortDate)")
                 }
             }
         }

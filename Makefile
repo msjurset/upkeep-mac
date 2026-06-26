@@ -7,11 +7,15 @@ build:
 
 bundle: build icon
 	@mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources $(BUNDLE)/Contents/Frameworks
+	$(MAKE) assets
 	command cp .build/release/Upkeep $(BUNDLE)/Contents/MacOS/$(APP_NAME)
 	install_name_tool -add_rpath @loader_path/../Frameworks $(BUNDLE)/Contents/MacOS/$(APP_NAME) 2>/dev/null || true
 	command cp AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	command cp Info.plist $(BUNDLE)/Contents/Info.plist
 	cp -R .build/arm64-apple-macosx/release/Sparkle.framework $(BUNDLE)/Contents/Frameworks/
+
+assets:
+	xcrun actool Resources/Assets.xcassets --compile $(BUNDLE)/Contents/Resources --platform macosx --minimum-deployment-target 15.0 --output-format xml1
 
 icon:
 	@test -f AppIcon.icns || swift scripts/generate-icon.swift

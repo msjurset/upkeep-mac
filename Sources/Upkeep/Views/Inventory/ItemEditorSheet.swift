@@ -4,6 +4,7 @@ struct ItemEditorSheet: View {
     @Environment(UpkeepStore.self) private var store
 
     let item: MaintenanceItem?
+    var initialScheduleKind: ScheduleKind? = nil
 
     @State private var name = ""
     @State private var category: MaintenanceCategory = .other
@@ -257,6 +258,8 @@ struct ItemEditorSheet: View {
                         unitCostString = "\(cost)"
                     }
                 }
+            } else if let initialScheduleKind {
+                scheduleKind = initialScheduleKind
             }
         }
     }

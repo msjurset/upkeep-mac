@@ -118,6 +118,22 @@ struct SchedulingServiceTests {
         #expect(svc.nextDueDate(for: item) == due)
     }
 
+    @Test("one-time nextDueDate returns distantFuture when completed or inactive")
+    func oneTimeNextDueCompletedOrInactive() {
+        let past = Calendar.current.date(byAdding: .day, value: -5, to: .now)!
+        var item = MaintenanceItem(name: "Fix hole", scheduleKind: .oneTime, startDate: past)
+        
+        // Test completed case
+        let log = LogEntry(itemID: item.id, title: "Done", category: .other, completedDate: .now)
+        let svcCompleted = SchedulingService(items: [item], logEntries: [log])
+        #expect(svcCompleted.nextDueDate(for: item) == .distantFuture)
+
+        // Test inactive case
+        item.isActive = false
+        let svcInactive = SchedulingService(items: [item], logEntries: [])
+        #expect(svcInactive.nextDueDate(for: item) == .distantFuture)
+    }
+
     @Test("one-time overdue when past due and not completed")
     func oneTimeOverdue() {
         let past = Calendar.current.date(byAdding: .day, value: -5, to: .now)!
@@ -299,8 +315,9 @@ struct SeasonalSchedulingTests {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        // Complete in last year's window
-        let completionDate = juneWindow.startDate(in: year - 1)
+        // Complete in the current resolved window's year
+        let completionYear = Date.now < juneWindow.startDate(in: year) ? year - 1 : year
+        let completionDate = juneWindow.startDate(in: completionYear)
         let log = LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden, completedDate: completionDate)
         let svc = SchedulingService(items: [item], logEntries: [log])
         let status = svc.seasonalStatus(for: item, window: juneWindow)
