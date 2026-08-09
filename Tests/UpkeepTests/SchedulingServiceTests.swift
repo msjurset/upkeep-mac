@@ -333,9 +333,10 @@ struct SeasonalSchedulingTests {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        let logs = (1...3).map { yearsAgo in
+        let mostRecentYear = Date.now > juneWindow.endDate(in: year) ? year : year - 1
+        let logs = (0...2).map { yearsAgo in
             LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
-                     completedDate: juneWindow.startDate(in: year - yearsAgo))
+                     completedDate: juneWindow.startDate(in: mostRecentYear - yearsAgo))
         }
         let svc = SchedulingService(items: [item], logEntries: logs)
         #expect(svc.currentStreak(for: item.id) == 3)
@@ -346,12 +347,13 @@ struct SeasonalSchedulingTests {
         let cal = Calendar.current
         let year = cal.component(.year, from: .now)
         let item = makeSeasonalItem()
-        // Completed 1 and 3 years ago, missed 2 years ago
+        let mostRecentYear = Date.now > juneWindow.endDate(in: year) ? year : year - 1
+        // Completed mostRecentYear and 2 years ago, missed 1 year ago
         let logs = [
             LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
-                     completedDate: juneWindow.startDate(in: year - 1)),
+                     completedDate: juneWindow.startDate(in: mostRecentYear)),
             LogEntry(itemID: item.id, title: "Done", category: .lawnAndGarden,
-                     completedDate: juneWindow.startDate(in: year - 3)),
+                     completedDate: juneWindow.startDate(in: mostRecentYear - 2)),
         ]
         let svc = SchedulingService(items: [item], logEntries: logs)
         #expect(svc.currentStreak(for: item.id) == 1)

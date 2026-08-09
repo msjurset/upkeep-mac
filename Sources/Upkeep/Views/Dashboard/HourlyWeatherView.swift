@@ -11,11 +11,18 @@ struct HourlyWeatherView: View {
         case precipitation
         case wind
         case humidityUV
+        case dewPointPressure
     }
 
     @State private var selectedDate: Date?
     @State private var scrollPosition: Date
     @State private var scrollTask: Task<Void, Never>? = nil
+    
+    @State private var cursorSpeed: Double = 0.0
+    @State private var lastCursorUpdate: Date = Date()
+    @State private var lastSelectedDate: Date?
+    @State private var isPaused: Bool = true
+    @State private var pauseTask: Task<Void, Never>? = nil
 
     init(day: DailyForecast, hourly: [HourlyForecast], metric: WeatherMetric) {
         self.day = day
@@ -39,8 +46,9 @@ struct HourlyWeatherView: View {
         switch metric {
         case .temperature:
             let temps = hourly.map { $0.tempF }
-            let minTemp = temps.min() ?? 0
-            let maxTemp = temps.max() ?? 100
+            let feels = hourly.map { $0.feelsLikeF }
+            let minTemp = min(temps.min() ?? 0, feels.min() ?? 0)
+            let maxTemp = max(temps.max() ?? 100, feels.max() ?? 100)
             return (minTemp - 5)...(maxTemp + 5)
             
         case .precipitation:
@@ -56,7 +64,38 @@ struct HourlyWeatherView: View {
             
         case .humidityUV:
             return 0...100
+            
+        case .dewPointPressure:
+            return pressureDomain
         }
+    }
+
+    private var pressureDomain: ClosedRange<Double> {
+        let pressures = hourly.map { $0.pressureHpa }
+        let minP = pressures.min() ?? 1000
+        let maxP = pressures.max() ?? 1020
+        return (minP - 2)...(maxP + 2)
+    }
+
+    private var dewPointDomain: ClosedRange<Double> {
+        let dews = hourly.map { $0.dewPointF }
+        let minD = dews.min() ?? 30
+        let maxD = dews.max() ?? 70
+        return (minD - 5)...(maxD + 5)
+    }
+
+    private func normalizedDewPoint(_ dp: Double) -> Double {
+        let dDomain = dewPointDomain
+        let pDomain = pressureDomain
+        let ratio = (dp - dDomain.lowerBound) / (dDomain.upperBound - dDomain.lowerBound)
+        return pDomain.lowerBound + ratio * (pDomain.upperBound - pDomain.lowerBound)
+    }
+
+    private func denormalizedDewPoint(from p: Double) -> Double {
+        let dDomain = dewPointDomain
+        let pDomain = pressureDomain
+        let ratio = (p - pDomain.lowerBound) / (pDomain.upperBound - pDomain.lowerBound)
+        return dDomain.lowerBound + ratio * (dDomain.upperBound - dDomain.lowerBound)
     }
 
     var body: some View {
@@ -70,6 +109,36 @@ struct HourlyWeatherView: View {
             .chartScrollPosition(x: $scrollPosition)
             .chartYScale(domain: yDomain)
             .onChange(of: selectedDate) { _, newValue in
+                let now = Date()
+                if let old = lastSelectedDate, let new = newValue {
+                    let timeDelta = now.timeIntervalSince(lastCursorUpdate)
+                    if timeDelta > 0 {
+                        let valueDelta = abs(new.timeIntervalSince(old))
+                        let rawSpeed = valueDelta / timeDelta
+                        cursorSpeed = (cursorSpeed * 0.7) + (rawSpeed * 0.3)
+                    }
+                } else if newValue == nil {
+                    cursorSpeed = 0
+                }
+                
+                lastSelectedDate = newValue
+                lastCursorUpdate = now
+                isPaused = false
+                
+                pauseTask?.cancel()
+                if newValue != nil {
+                    pauseTask = Task {
+                        do {
+                            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                            if !Task.isCancelled {
+                                await MainActor.run {
+                                    isPaused = true
+                                }
+                            }
+                        } catch {}
+                    }
+                }
+                
                 handleSelectionChange(newValue)
             }
             .onDisappear {
@@ -135,6 +204,25 @@ struct HourlyWeatherView: View {
                             AxisValueLabel {
                                 Text("\(Int(yVal))%")
                                     .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                } else if metric == .dewPointPressure {
+                    AxisMarks(position: .leading) { value in
+                        if let yVal = value.as(Double.self) {
+                            AxisValueLabel {
+                                Text("\(Int(yVal)) hPa")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                    AxisMarks(position: .trailing) { value in
+                        AxisGridLine()
+                        if let yVal = value.as(Double.self) {
+                            let dew = denormalizedDewPoint(from: yVal)
+                            AxisValueLabel {
+                                Text("\(Int(dew))°")
+                                    .foregroundStyle(.teal)
                             }
                         }
                     }
@@ -241,25 +329,27 @@ struct HourlyWeatherView: View {
                 ForEach(hourly) { hour in
                     LineMark(
                         x: .value("Time", hour.date),
-                        y: .value("Temp", hour.tempF)
+                        y: .value("Value", hour.tempF)
                     )
                     .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.orange)
-                }
-                ForEach(hourly) { hour in
-                    AreaMark(
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                    .foregroundStyle(by: .value("Metric", "Temperature"))
+
+                    LineMark(
                         x: .value("Time", hour.date),
-                        y: .value("Temp", hour.tempF)
+                        y: .value("Value", hour.feelsLikeF)
                     )
                     .interpolationMethod(.catmullRom)
-                    .foregroundStyle(LinearGradient(
-                        colors: [.orange.opacity(0.2), .orange.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .foregroundStyle(by: .value("Metric", "Feels Like"))
                 }
                 commonMarks
             }
+            .chartForegroundStyleScale([
+                "Temperature": .orange,
+                "Feels Like": .pink
+            ])
+            .chartLegend(.hidden)
         case .precipitation:
             Chart {
                 ForEach(hourly) { hour in
@@ -317,6 +407,27 @@ struct HourlyWeatherView: View {
                 }
                 commonMarks
             }
+        case .dewPointPressure:
+            Chart {
+                ForEach(hourly) { hour in
+                    BarMark(
+                        x: .value("Time", hour.date),
+                        yStart: .value("Start", pressureDomain.lowerBound),
+                        yEnd: .value("End", normalizedDewPoint(hour.dewPointF))
+                    )
+                    .foregroundStyle(.teal.opacity(0.4))
+                }
+                ForEach(hourly) { hour in
+                    LineMark(
+                        x: .value("Time", hour.date),
+                        y: .value("Pressure", hour.pressureHpa)
+                    )
+                    .foregroundStyle(.gray.opacity(0.7))
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .interpolationMethod(.catmullRom)
+                }
+                commonMarks
+            }
         }
     }
 
@@ -346,28 +457,32 @@ struct HourlyWeatherView: View {
         }
 
         if let selectedDate, let nearest = nearestHour(for: selectedDate) {
-            RuleMark(x: .value("Selected", selectedDate))
+            let snapped = magneticallySnappedDate(for: selectedDate)
+            
+            RuleMark(x: .value("Selected", snapped))
                 .foregroundStyle(.blue.opacity(0.3))
                 .lineStyle(StrokeStyle(lineWidth: 1))
             
+            let pos = tooltipPosition(for: snapped)
+            
             if metric == .humidityUV {
                 PointMark(
-                    x: .value("Time", selectedDate),
-                    y: .value("HumidityValue", interpolatedValue(for: selectedDate))
+                    x: .value("Time", snapped),
+                    y: .value("HumidityValue", interpolatedValue(for: snapped))
                 )
                 .foregroundStyle(Color.blue)
                 .symbolSize(60)
-                .annotation(position: .top, spacing: 5) {
+                .annotation(position: pos, spacing: 5) {
                     humidityTooltip(for: selectedDate, nearest: nearest)
                 }
             } else {
                 PointMark(
-                    x: .value("Time", selectedDate),
-                    y: .value("Value", interpolatedValue(for: selectedDate))
+                    x: .value("Time", snapped),
+                    y: .value("Value", interpolatedValue(for: snapped))
                 )
                 .foregroundStyle(.blue)
                 .symbolSize(60)
-                .annotation(position: .top, spacing: 5) {
+                .annotation(position: pos, spacing: 5) {
                     defaultTooltip(for: selectedDate, nearest: nearest)
                 }
             }
@@ -390,6 +505,7 @@ struct HourlyWeatherView: View {
         case .precipitation: "Precipitation"
         case .wind: "Wind"
         case .humidityUV: "Humidity & UV"
+        case .dewPointPressure: "Dew Point & Pressure"
         }
     }
 
@@ -409,6 +525,39 @@ struct HourlyWeatherView: View {
 
     private func nearestHour(for date: Date) -> HourlyForecast? {
         hourly.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
+    }
+
+    private func magneticallySnappedDate(for date: Date) -> Date {
+        guard let nearest = nearestHour(for: date) else { return date }
+        
+        let effectiveSpeed = isPaused ? 0.0 : cursorSpeed
+        
+        // Thresholds for speed (data seconds per real second)
+        // Sweeping 1 hour in 1 second is speed 3600.
+        let fastThreshold: Double = 15000 // Fast movement (no magnet)
+        let slowThreshold: Double = 4000  // Slow movement (full magnet)
+        
+        var magnetStrength: Double = 1.0
+        if effectiveSpeed > fastThreshold {
+            magnetStrength = 0.0
+        } else if effectiveSpeed > slowThreshold {
+            magnetStrength = 1.0 - (effectiveSpeed - slowThreshold) / (fastThreshold - slowThreshold)
+        }
+        
+        let diff = date.timeIntervalSince(nearest.date)
+        let detentRadius: TimeInterval = 1800
+        
+        if abs(diff) <= detentRadius {
+            let normalized = diff / detentRadius
+            let eased = normalized * normalized * normalized
+            
+            let fullSnapOffset = eased * detentRadius
+            let actualOffset = diff + (fullSnapOffset - diff) * magnetStrength
+            
+            return nearest.date.addingTimeInterval(actualOffset)
+        }
+        
+        return date
     }
 
     private func interpolatedValue(for date: Date) -> Double {
@@ -437,6 +586,20 @@ struct HourlyWeatherView: View {
         case .precipitation: Double(hour.precipitationProbability)
         case .wind: hour.windSpeedMph
         case .humidityUV: Double(hour.humidity)
+        case .dewPointPressure: hour.pressureHpa
+        }
+    }
+
+    private func tooltipPosition(for date: Date) -> AnnotationPosition {
+        let val = interpolatedValue(for: date)
+        let values = hourly.map { value(for: $0) }
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 100
+        let range = maxValue - minValue
+        if range > 0 && (val - minValue) / range > 0.5 {
+            return .bottomLeading
+        } else {
+            return .topLeading
         }
     }
 
@@ -476,8 +639,18 @@ struct HourlyWeatherView: View {
                 .font(.system(size: 8, weight: .bold))
             Text(valueString(for: nearest))
                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
+            if metric == .temperature {
+                Text("feels like \(Int(nearest.feelsLikeF))°")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
             if metric == .precipitation && nearest.precipitationInches > 0 {
                 Text(String(format: "%.2f\"", nearest.precipitationInches))
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
+            if metric == .dewPointPressure {
+                Text("dew point \(Int(nearest.dewPointF))°")
                     .font(.system(size: 8))
                     .foregroundStyle(.secondary)
             }
@@ -495,6 +668,7 @@ struct HourlyWeatherView: View {
         case .precipitation: "\(hour.precipitationProbability)%"
         case .wind: "\(Int(hour.windSpeedMph)) mph"
         case .humidityUV: "UV \(Int(hour.uvIndex))"
+        case .dewPointPressure: "\(Int(hour.pressureHpa)) hPa"
         }
     }
 

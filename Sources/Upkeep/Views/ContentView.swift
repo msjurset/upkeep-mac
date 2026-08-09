@@ -17,21 +17,25 @@ struct ContentView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(selection: $store.navigation)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-        } content: {
-            if store.navigation == .dashboard || store.navigation == .homeProfile {
-                Color.clear
-                    .navigationSplitViewColumnWidth(min: 0, ideal: 0, max: 0)
-            } else {
-                ContentListView(
-                    showNewItemSheet: $showNewItemSheet,
-                    showNewLogEntrySheet: $showNewLogEntrySheet,
-                    showNewVendorSheet: $showNewVendorSheet,
-                    showNewSourcingSheet: $showNewSourcingSheet
-                )
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 500)
-            }
         } detail: {
-            DetailView()
+            if store.navigation == .dashboard || store.navigation == .homeProfile {
+                DetailView()
+            } else {
+                HStack(spacing: 0) {
+                    ContentListView(
+                        showNewItemSheet: $showNewItemSheet,
+                        showNewLogEntrySheet: $showNewLogEntrySheet,
+                        showNewVendorSheet: $showNewVendorSheet,
+                        showNewSourcingSheet: $showNewSourcingSheet
+                    )
+                    .frame(minWidth: 320, idealWidth: 380, maxWidth: 500)
+                    
+                    Divider()
+                    
+                    DetailView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {

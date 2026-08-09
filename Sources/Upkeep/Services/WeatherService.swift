@@ -17,11 +17,13 @@ struct DailyForecast: Identifiable, Sendable, Hashable {
     let uvIndex: Double
     let sunrise: Date?
     let sunset: Date?
+    let pressureHpa: Double
+    let dewPointF: Double
 
     init(date: Date, highF: Double, lowF: Double, feelsLikeHighF: Double = 0, feelsLikeLowF: Double = 0,
          weatherCode: Int, precipitationInches: Double = 0, precipitationProbability: Int = 0,
          windSpeedMph: Double = 0, windGustMph: Double = 0, humidity: Int = 0, uvIndex: Double = 0,
-         sunrise: Date? = nil, sunset: Date? = nil) {
+         sunrise: Date? = nil, sunset: Date? = nil, pressureHpa: Double = 0, dewPointF: Double = 0) {
         self.id = UUID()
         self.date = date
         self.highF = highF
@@ -37,6 +39,8 @@ struct DailyForecast: Identifiable, Sendable, Hashable {
         self.uvIndex = uvIndex
         self.sunrise = sunrise
         self.sunset = sunset
+        self.pressureHpa = pressureHpa
+        self.dewPointF = dewPointF
     }
 
     var condition: String { WeatherCode.description(for: weatherCode) }
@@ -65,10 +69,13 @@ struct HourlyForecast: Identifiable, Sendable, Hashable {
     let windGustMph: Double
     let humidity: Int
     let uvIndex: Double
+    let feelsLikeF: Double
+    let dewPointF: Double
+    let pressureHpa: Double
 
     init(date: Date, tempF: Double, weatherCode: Int, precipitationProbability: Int,
          precipitationInches: Double, windSpeedMph: Double, windGustMph: Double,
-         humidity: Int, uvIndex: Double) {
+         humidity: Int, uvIndex: Double, feelsLikeF: Double, dewPointF: Double, pressureHpa: Double) {
         self.id = UUID()
         self.date = date
         self.tempF = tempF
@@ -79,6 +86,9 @@ struct HourlyForecast: Identifiable, Sendable, Hashable {
         self.windGustMph = windGustMph
         self.humidity = humidity
         self.uvIndex = uvIndex
+        self.feelsLikeF = feelsLikeF
+        self.dewPointF = dewPointF
+        self.pressureHpa = pressureHpa
     }
 
     var symbol: String { WeatherCode.sfSymbol(for: weatherCode) }
@@ -111,8 +121,8 @@ actor WeatherService {
             "latitude=\(latitude)&longitude=\(longitude)" +
             "&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min," +
             "weathercode,precipitation_sum,precipitation_probability_max," +
-            "windspeed_10m_max,windgusts_10m_max,relative_humidity_2m_mean,uv_index_max,sunrise,sunset" +
-            "&hourly=temperature_2m,weathercode,precipitation,precipitation_probability," +
+            "windspeed_10m_max,windgusts_10m_max,relative_humidity_2m_mean,uv_index_max,sunrise,sunset,surface_pressure_mean,dew_point_2m_max" +
+            "&hourly=temperature_2m,apparent_temperature,dew_point_2m,surface_pressure,weathercode,precipitation,precipitation_probability," +
             "windspeed_10m,windgusts_10m,relative_humidity_2m,uv_index" +
             "&forecast_days=14" +
             "&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch" +
@@ -159,7 +169,9 @@ actor WeatherService {
                 humidity: daily.relative_humidity_2m_mean?[i] ?? 0,
                 uvIndex: daily.uv_index_max?[i] ?? 0,
                 sunrise: sunriseDate,
-                sunset: sunsetDate
+                sunset: sunsetDate,
+                pressureHpa: daily.surface_pressure_mean?[i] ?? 0,
+                dewPointF: daily.dew_point_2m_max?[i] ?? 0
             ))
         }
         return forecasts
@@ -186,7 +198,10 @@ actor WeatherService {
                 windSpeedMph: hourly.windspeed_10m?[i] ?? 0,
                 windGustMph: hourly.windgusts_10m?[i] ?? 0,
                 humidity: hourly.relative_humidity_2m?[i] ?? 0,
-                uvIndex: hourly.uv_index?[i] ?? 0
+                uvIndex: hourly.uv_index?[i] ?? 0,
+                feelsLikeF: hourly.apparent_temperature?[i] ?? 0,
+                dewPointF: hourly.dew_point_2m?[i] ?? 0,
+                pressureHpa: hourly.surface_pressure?[i] ?? 0
             ))
         }
         return forecasts
@@ -228,6 +243,8 @@ private struct OMDaily: Decodable {
     let uv_index_max: [Double]?
     let sunrise: [String]?
     let sunset: [String]?
+    let surface_pressure_mean: [Double]?
+    let dew_point_2m_max: [Double]?
 }
 
 private struct OMHourly: Decodable {
@@ -240,6 +257,9 @@ private struct OMHourly: Decodable {
     let windgusts_10m: [Double]?
     let relative_humidity_2m: [Int]?
     let uv_index: [Double]?
+    let apparent_temperature: [Double]?
+    let dew_point_2m: [Double]?
+    let surface_pressure: [Double]?
 }
 
 // MARK: - WMO Weather Codes

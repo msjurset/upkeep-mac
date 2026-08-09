@@ -169,14 +169,12 @@ struct WeatherWidget: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(weather.forecast.daily) { day in
-                    Button {
-                        initialDetailDay = day
-                        showDetail = true
-                    } label: {
-                        dayColumn(day)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                    dayColumn(day)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            initialDetailDay = day
+                            showDetail = true
+                        }
                 }
             }
             .padding(.vertical, 4)
@@ -270,6 +268,8 @@ struct WeatherDetailSheet: View {
             Divider()
 
             ScrollView {
+                // Applied .focusEffectDisabled to children via group or direct
+                Group {
                 VStack(spacing: 0) {
                     ForEach(Array(weather.forecast.daily.enumerated()), id: \.element.id) { index, day in
                         HStack(spacing: 12) {
@@ -431,12 +431,45 @@ struct WeatherDetailSheet: View {
                                     metric: .humidityUV
                                 )
                             }
+
+                            // Dew Point & Pressure
+                            Button {
+                                popoverMetric = .dewPointPressure
+                                popoverDay = day
+                            } label: {
+                                VStack(spacing: 1) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "barometer")
+                                            .font(.caption2)
+                                        Text("\(Int(day.pressureHpa))")
+                                            .font(.caption.monospacedDigit())
+                                    }
+                                    Text("dew \(Int(day.dewPointF))°")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .frame(width: 60)
+                            .popover(item: Binding(
+                                get: { (popoverDay?.id == day.id && popoverMetric == .dewPointPressure) ? popoverDay : nil },
+                                set: { if $0 == nil { popoverDay = nil } }
+                            ), arrowEdge: .top) { day in
+                                HourlyWeatherView(
+                                    day: day,
+                                    hourly: weather.hourlyForecast(for: day.date),
+                                    metric: .dewPointPressure
+                                )
+                            }
                         }
                         .padding(.vertical, 8)
                         .padding(.horizontal, 16)
                         .background(index.isMultiple(of: 2) ? Color.secondary.opacity(0.04) : Color.clear)
                     }
                 }
+                }
+                .focusEffectDisabled()
             }
             .onAppear {
                 if let initialDay {
@@ -458,6 +491,6 @@ struct WeatherDetailSheet: View {
             }
             .padding()
         }
-        .frame(width: 640, height: 480)
+        .frame(width: 720, height: 480)
     }
 }
