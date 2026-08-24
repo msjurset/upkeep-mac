@@ -25,6 +25,8 @@ actor Persistence {
     private let logDir: URL
     private let vendorsDir: URL
     private let sourcingsDir: URL
+    private let propertiesDir: URL
+    private let proceduresDir: URL
     let photosDir: URL
     let attachmentsDir: URL
 
@@ -41,6 +43,8 @@ actor Persistence {
         // Path component stays "searches" for shared-folder compatibility with older clients
         // that haven't been updated yet (Kim's app on Google Drive sync).
         self.sourcingsDir = base.appendingPathComponent("searches")
+        self.propertiesDir = base.appendingPathComponent("properties")
+        self.proceduresDir = base.appendingPathComponent("procedures")
         self.photosDir = base.appendingPathComponent("photos")
         self.attachmentsDir = base.appendingPathComponent("attachments")
 
@@ -54,7 +58,7 @@ actor Persistence {
         self.decoder = dec
 
         let fm = FileManager.default
-        for dir in [base, localURL, itemsDir, logDir, vendorsDir, sourcingsDir, photosDir, attachmentsDir] {
+        for dir in [base, localURL, itemsDir, logDir, vendorsDir, sourcingsDir, propertiesDir, proceduresDir, photosDir, attachmentsDir] {
             if !fm.fileExists(atPath: dir.path) {
                 try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }
@@ -131,6 +135,67 @@ actor Persistence {
         let configFile = baseURL.appendingPathComponent("config.json")
         let data = try encoder.encode(config)
         try data.write(to: configFile, options: .atomic)
+    }
+
+    // MARK: - Properties
+
+    func loadProperties() throws -> [Property] {
+        let loaded: [Property] = try loadAll(from: propertiesDir)
+        if !loaded.isEmpty {
+            return loaded
+        }
+
+        // Automatic migration from legacy home.json if present
+        let file = baseURL.appendingPathComponent("home.json")
+        let fm = FileManager.default
+        if fm.fileExists(atPath: file.path) {
+            if let data = try? Data(contentsOf: file),
+               let homeProfile = try? decoder.decode(HomeProfile.self, from: data) {
+                let primary = Property(
+                    id: UUID(),
+                    name: "Primary Home",
+                    address: homeProfile.address,
+                    yearBuilt: homeProfile.yearBuilt,
+                    squareFootage: homeProfile.squareFootage,
+                    notes: homeProfile.notes,
+                    icon: "house.fill",
+                    isPrimary: true,
+                    latitude: homeProfile.latitude,
+                    longitude: homeProfile.longitude,
+                    geocodedAddress: homeProfile.geocodedAddress,
+                    systems: homeProfile.systems
+                )
+                try? saveProperty(primary)
+                return [primary]
+            }
+        }
+
+        // Default primary property for fresh installs
+        let defaultPrimary = Property(name: "Primary Home", isPrimary: true)
+        try? saveProperty(defaultPrimary)
+        return [defaultPrimary]
+    }
+
+    func saveProperty(_ property: Property) throws {
+        try save(property, id: property.id, to: propertiesDir)
+    }
+
+    func deleteProperty(id: UUID) throws {
+        try deleteFile(id: id, from: propertiesDir)
+    }
+
+    // MARK: - Procedures
+
+    func loadProcedures() throws -> [Procedure] {
+        try loadAll(from: proceduresDir)
+    }
+
+    func saveProcedure(_ procedure: Procedure) throws {
+        try save(procedure, id: procedure.id, to: proceduresDir)
+    }
+
+    func deleteProcedure(id: UUID) throws {
+        try deleteFile(id: id, from: proceduresDir)
     }
 
     // MARK: - Home Profile
@@ -222,16 +287,9 @@ actor Persistence {
         let timestamp = formatter.string(from: .now)
         let backupFile = backupsDir.appendingPathComponent("upkeep-\(timestamp).zip")
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        process.currentDirectoryURL = baseURL
-        process.arguments = ["-r", backupFile.path,
-                             "items", "log", "vendors", "photos",
-                             "config.json", "home.json", "members.json"]
-        // Only include files that exist
         let fm2 = FileManager.default
         var args = ["-r", backupFile.path]
-        for name in ["items", "log", "vendors", "searches", "photos", "attachments"] {
+        for name in ["items", "log", "vendors", "searches", "properties", "photos", "attachments"] {
             if fm2.fileExists(atPath: baseURL.appendingPathComponent(name).path) {
                 args.append(name)
             }
@@ -241,6 +299,10 @@ actor Persistence {
                 args.append(name)
             }
         }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        process.currentDirectoryURL = baseURL
         process.arguments = args
 
         let pipe = Pipe()
@@ -258,7 +320,7 @@ actor Persistence {
 
     func restore(from zipURL: URL) throws {
         let fm = FileManager.default
-        let dataDirs = ["items", "log", "vendors", "searches", "photos", "attachments"]
+        let dataDirs = ["items", "log", "vendors", "searches", "properties", "photos", "attachments"]
         let dataFiles = ["config.json", "home.json", "members.json"]
 
         // 1. Unzip to temp dir to verify integrity
@@ -307,7 +369,7 @@ actor Persistence {
         try? fm.removeItem(at: safetyDir)
 
         // Re-create directories if they didn't exist in the backup
-        for dir in [itemsDir, logDir, vendorsDir, sourcingsDir, photosDir, attachmentsDir] {
+        for dir in [itemsDir, logDir, vendorsDir, sourcingsDir, propertiesDir, photosDir, attachmentsDir] {
             if !fm.fileExists(atPath: dir.path) {
                 try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }

@@ -6,6 +6,7 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
     /// When set, identifies which `SubEvent` of the parent item this log
     /// entry recorded. Nil for items without sub-events (the common case).
     var subEventID: UUID?
+    var propertyID: UUID?
     var title: String
     var category: MaintenanceCategory
     var completedDate: Date
@@ -22,13 +23,14 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
     /// field existed.
     var countsAsCompletion: Bool
 
-    init(id: UUID = UUID(), itemID: UUID? = nil, subEventID: UUID? = nil, title: String,
+    init(id: UUID = UUID(), propertyID: UUID? = nil, itemID: UUID? = nil, subEventID: UUID? = nil, title: String,
          category: MaintenanceCategory = .other, completedDate: Date = .now,
          notes: String = "", cost: Decimal? = nil, performedBy: String = "",
          rating: Int? = nil, photoFilenames: [String] = [],
          attachments: [Attachment] = [], createdAt: Date = .now,
          countsAsCompletion: Bool = true) {
         self.id = id
+        self.propertyID = propertyID
         self.itemID = itemID
         self.subEventID = subEventID
         self.title = title
@@ -47,6 +49,7 @@ struct LogEntry: Codable, Identifiable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
+        propertyID = try container.decodeIfPresent(UUID.self, forKey: .propertyID)
         itemID = try container.decodeIfPresent(UUID.self, forKey: .itemID)
         subEventID = try container.decodeIfPresent(UUID.self, forKey: .subEventID)
         title = try container.decode(String.self, forKey: .title)

@@ -32,7 +32,7 @@ struct LogView: View {
             }
             .listStyle(.inset)
             .overlay {
-                if store.logEntries.isEmpty {
+                if store.scopedLogEntries.isEmpty {
                     EmptyListOverlay(
                         icon: "book",
                         title: "No log entries",
@@ -48,13 +48,13 @@ struct LogView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
 
-        let grouped = Dictionary(grouping: store.logEntries) { entry in
+        let grouped = Dictionary(grouping: store.scopedLogEntries) { entry in
             formatter.string(from: entry.completedDate)
         }
 
         return grouped.sorted { a, b in
-            let dateA = store.logEntries.first { formatter.string(from: $0.completedDate) == a.key }?.completedDate ?? .distantPast
-            let dateB = store.logEntries.first { formatter.string(from: $0.completedDate) == b.key }?.completedDate ?? .distantPast
+            let dateA = store.scopedLogEntries.first { formatter.string(from: $0.completedDate) == a.key }?.completedDate ?? .distantPast
+            let dateB = store.scopedLogEntries.first { formatter.string(from: $0.completedDate) == b.key }?.completedDate ?? .distantPast
             return dateA > dateB
         }
     }
@@ -82,9 +82,23 @@ struct LogEntryRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry.title)
-                    .font(.body.weight(.medium))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(entry.title)
+                        .font(.body.weight(.medium))
+                        .lineLimit(1)
+                    if store.selectedPropertyID == nil, let propID = entry.propertyID, let prop = store.properties.first(where: { $0.id == propID }) {
+                        HStack(spacing: 3) {
+                            PropertyIconView(prop.icon, font: .caption2)
+                            Text(prop.name)
+                        }
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.upkeepAmber)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.upkeepAmber.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                }
 
                 HStack(spacing: 6) {
                     Text(entry.completedDate.shortDate)

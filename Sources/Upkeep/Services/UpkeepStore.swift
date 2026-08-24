@@ -25,15 +25,36 @@ final class UpkeepStore {
         }
     }
 
+    var properties: [Property] = []
     var items: [MaintenanceItem] = []
     var logEntries: [LogEntry] = []
     var vendors: [Vendor] = []
     var sourcings: [Sourcing] = []
+    var procedures: [Procedure] = []
     var members: [HouseholdMember] = []
     var config: AppConfig = AppConfig()
     var sortMode: SortMode = .dueSoonest
+    var selectedPropertyID: UUID? = nil {
+        willSet {
+            if !isApplyingHistory && newValue != selectedPropertyID {
+                recordHistory()
+            }
+        }
+    }
+    var selectedProcedureID: UUID? = nil {
+        willSet {
+            if !isApplyingHistory && newValue != selectedProcedureID {
+                recordHistory()
+            }
+        }
+    }
 
     var navigation: NavigationItem? = .dashboard {
+        willSet {
+            if !isApplyingHistory && newValue != navigation {
+                recordHistory()
+            }
+        }
         didSet {
             if let navigation {
                 localConfig.lastNavigationKey = navigation.sectionKey
@@ -58,17 +79,49 @@ final class UpkeepStore {
     struct NavigationSnapshot: Equatable, Sendable {
         let navigation: NavigationItem?
         let vendorsTab: VendorsTab
+        let selectedPropertyID: UUID?
         let selectedItemID: UUID?
         let selectedVendorID: UUID?
         let selectedLogEntryID: UUID?
         let selectedSourcingID: UUID?
+        let selectedProcedureID: UUID?
     }
 
-    var selectedItemID: UUID?
-    var selectedVendorID: UUID?
-    var selectedLogEntryID: UUID?
-    var selectedSourcingID: UUID?
-    var vendorsTab: VendorsTab = .vendors
+    var selectedItemID: UUID? {
+        willSet {
+            if !isApplyingHistory && newValue != selectedItemID {
+                recordHistory()
+            }
+        }
+    }
+    var selectedVendorID: UUID? {
+        willSet {
+            if !isApplyingHistory && newValue != selectedVendorID {
+                recordHistory()
+            }
+        }
+    }
+    var selectedLogEntryID: UUID? {
+        willSet {
+            if !isApplyingHistory && newValue != selectedLogEntryID {
+                recordHistory()
+            }
+        }
+    }
+    var selectedSourcingID: UUID? {
+        willSet {
+            if !isApplyingHistory && newValue != selectedSourcingID {
+                recordHistory()
+            }
+        }
+    }
+    var vendorsTab: VendorsTab = .vendors {
+        willSet {
+            if !isApplyingHistory && newValue != vendorsTab {
+                recordHistory()
+            }
+        }
+    }
     var showInactiveVendors = false
 
     // Back/forward navigation history. recordHistory() pushes the current snapshot
@@ -159,10 +212,12 @@ final class UpkeepStore {
         NavigationSnapshot(
             navigation: navigation,
             vendorsTab: vendorsTab,
+            selectedPropertyID: selectedPropertyID,
             selectedItemID: selectedItemID,
             selectedVendorID: selectedVendorID,
             selectedLogEntryID: selectedLogEntryID,
-            selectedSourcingID: selectedSourcingID
+            selectedSourcingID: selectedSourcingID,
+            selectedProcedureID: selectedProcedureID
         )
     }
 
@@ -196,10 +251,12 @@ final class UpkeepStore {
         isApplyingHistory = true
         navigation = snapshot.navigation
         vendorsTab = snapshot.vendorsTab
+        selectedPropertyID = snapshot.selectedPropertyID
         selectedItemID = snapshot.selectedItemID
         selectedVendorID = snapshot.selectedVendorID
         selectedLogEntryID = snapshot.selectedLogEntryID
         selectedSourcingID = snapshot.selectedSourcingID
+        selectedProcedureID = snapshot.selectedProcedureID
         // Defer flag clear so SwiftUI's .onChange handlers see the flag as still set
         // and skip their normal selection-clearing behavior.
         Task { @MainActor in
@@ -226,6 +283,7 @@ final class UpkeepStore {
     private func silentReload() {
         Task {
             do {
+                let loadedProperties = try await persistence.loadProperties()
                 let loadedItems = try await persistence.loadItems()
                 let loadedLog = try await persistence.loadLogEntries()
                 let loadedVendors = try await persistence.loadVendors()
@@ -235,6 +293,7 @@ final class UpkeepStore {
                 // Detect conflicts before replacing in-memory model
                 detectConflicts(newItems: loadedItems, newVendors: loadedVendors)
 
+                self.properties = loadedProperties
                 self.items = loadedItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.logEntries = loadedLog.sorted { $0.completedDate > $1.completedDate }
                 self.vendors = loadedVendors.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -361,13 +420,59 @@ final class UpkeepStore {
     }
 
     var visibleVendors: [Vendor] {
-        showInactiveVendors ? vendors : vendors.filter(\.isActive)
+        let base = scopedVendors
+        return showInactiveVendors ? base : base.filter(\.isActive)
+    }
+
+    // MARK: - Properties CRUD
+
+    func saveProperty(_ property: Property) {
+        var updated = properties
+        if let idx = updated.firstIndex(where: { $0.id == property.id }) {
+            updated[idx] = property
+        } else {
+            updated.append(property)
+        }
+        properties = updated
+        Task {
+            do {
+                try await persistence.saveProperty(property)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func deleteProperty(id: UUID) {
+        guard properties.count > 1 else { return }
+        properties.removeAll { $0.id == id }
+        if selectedPropertyID == id {
+            selectedPropertyID = nil
+        }
+        Task {
+            do {
+                try await persistence.deleteProperty(id: id)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    var selectedProperty: Property? {
+        guard let id = selectedPropertyID else { return nil }
+        return properties.first { $0.id == id }
+    }
+
+    var primaryProperty: Property? {
+        properties.first { $0.isPrimary } ?? properties.first
     }
 
     // MARK: - Computed: Scheduling
 
     var scheduling: SchedulingService {
-        SchedulingService(items: items, logEntries: logEntries)
+        SchedulingService(items: activeItems, logEntries: scopedLogEntries)
     }
 
     func lastCompletion(for itemID: UUID) -> LogEntry? {
@@ -388,8 +493,30 @@ final class UpkeepStore {
 
     // MARK: - Computed: Filtered Lists
 
+    var scopedLogEntries: [LogEntry] {
+        guard let selectedPropertyID else { return logEntries }
+        return logEntries.filter { $0.propertyID == nil || $0.propertyID == selectedPropertyID }
+    }
+
+    var scopedSourcings: [Sourcing] {
+        guard let selectedPropertyID else { return sourcings }
+        return sourcings.filter { $0.propertyID == nil || $0.propertyID == selectedPropertyID }
+    }
+
+    var scopedVendors: [Vendor] {
+        guard let selectedPropertyID else { return vendors }
+        return vendors.filter { $0.propertyIDs.isEmpty || $0.propertyIDs.contains(selectedPropertyID) }
+    }
+
     var activeItems: [MaintenanceItem] {
-        items.filter(\.isActive)
+        let base = items.filter(\.isActive)
+        guard let selectedPropertyID else { return base }
+        return base.filter { $0.propertyID == nil || $0.propertyID == selectedPropertyID }
+    }
+
+    var allScopedItems: [MaintenanceItem] {
+        guard let selectedPropertyID else { return items }
+        return items.filter { $0.propertyID == nil || $0.propertyID == selectedPropertyID }
     }
 
     var filteredActiveItems: [MaintenanceItem] {
@@ -399,7 +526,7 @@ final class UpkeepStore {
     /// Every item (active + inactive) with search + sort applied. Used by the "All Items" section
     /// so deactivated items remain discoverable for reactivation.
     var filteredAllItems: [MaintenanceItem] {
-        applyingSort(applyingSearchFilter(items))
+        applyingSort(applyingSearchFilter(allScopedItems))
     }
 
     var filteredOverdueItems: [MaintenanceItem] {
@@ -464,7 +591,7 @@ final class UpkeepStore {
     }
 
     var pendingFollowUps: [MaintenanceItem] {
-        items.filter { item in
+        activeItems.filter { item in
             item.followUps.contains { !$0.isDone }
         }
     }
@@ -489,7 +616,7 @@ final class UpkeepStore {
 
     var recentLogEntries: [LogEntry] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
-        return logEntries
+        return scopedLogEntries
             .filter { $0.completedDate >= cutoff }
             .sorted { $0.completedDate > $1.completedDate }
     }
@@ -545,13 +672,13 @@ final class UpkeepStore {
     }
 
     func logEntries(for itemID: UUID) -> [LogEntry] {
-        logEntries
+        scopedLogEntries
             .filter { $0.itemID == itemID }
             .sorted { $0.completedDate > $1.completedDate }
     }
 
     func items(for vendorID: UUID) -> [MaintenanceItem] {
-        items.filter { $0.vendorID == vendorID }
+        activeItems.filter { $0.vendorID == vendorID }
     }
 
     func vendor(for item: MaintenanceItem) -> Vendor? {
@@ -566,18 +693,31 @@ final class UpkeepStore {
         isLoading = true
         Task {
             do {
+                let loadedProperties = try await persistence.loadProperties()
                 let loadedItems = try await persistence.loadItems()
                 let loadedLog = try await persistence.loadLogEntries()
                 let loadedVendors = try await persistence.loadVendors()
                 let loadedSourcings = try await persistence.loadSourcings()
+                let loadedProcedures = (try? await persistence.loadProcedures()) ?? []
                 let loadedMembers = try await persistence.loadMembers()
                 let loadedConfig = (try? await persistence.loadConfig()) ?? AppConfig()
+                self.properties = loadedProperties
                 self.items = loadedItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.logEntries = loadedLog.sorted { $0.completedDate > $1.completedDate }
                 self.vendors = loadedVendors.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 self.sourcings = loadedSourcings.sorted { $0.updatedAt > $1.updatedAt }
                 self.members = loadedMembers
                 self.config = loadedConfig
+                if loadedProcedures.isEmpty {
+                    let defaultProcs = [
+                        Procedure.defaultWinterizationTemplate(propertyID: selectedPropertyID ?? primaryProperty?.id),
+                        Procedure.defaultSpringOpeningTemplate(propertyID: selectedPropertyID ?? primaryProperty?.id)
+                    ]
+                    for p in defaultProcs { try? await persistence.saveProcedure(p) }
+                    self.procedures = defaultProcs
+                } else {
+                    self.procedures = loadedProcedures.sorted { $0.createdAt > $1.createdAt }
+                }
                 self.error = nil
                 snapshotVersions()
                 await syncAllNotifications()
@@ -612,7 +752,7 @@ final class UpkeepStore {
 
     // MARK: - Item CRUD
 
-    func createItem(name: String, category: MaintenanceCategory = .other, priority: Priority = .medium,
+    func createItem(propertyID: UUID? = nil, name: String, category: MaintenanceCategory = .other, priority: Priority = .medium,
                     scheduleKind: ScheduleKind = .recurring,
                     frequencyInterval: Int = 1, frequencyUnit: FrequencyUnit = .months,
                     startDate: Date = .now, notes: String = "", vendorID: UUID? = nil,
@@ -622,6 +762,7 @@ final class UpkeepStore {
                     seasonalWindow: SeasonalWindow? = nil,
                     subEvents: [SubEvent] = []) {
         let item = MaintenanceItem(
+            propertyID: propertyID,
             name: name, category: category, priority: priority,
             scheduleKind: scheduleKind,
             frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,
@@ -917,12 +1058,13 @@ final class UpkeepStore {
 
     // MARK: - Log Entry CRUD
 
-    func logCompletion(itemID: UUID?, subEventID: UUID? = nil, title: String, category: MaintenanceCategory = .other,
+    func logCompletion(propertyID: UUID? = nil, itemID: UUID?, subEventID: UUID? = nil, title: String, category: MaintenanceCategory = .other,
                        date: Date = .now, notes: String = "", cost: Decimal? = nil,
                        performedBy: String = "", rating: Int? = nil,
                        countsAsCompletion: Bool = true) {
+        let resolvedPropertyID = propertyID ?? (itemID != nil ? items.first(where: { $0.id == itemID })?.propertyID : nil)
         let entry = LogEntry(
-            itemID: itemID, subEventID: subEventID, title: title, category: category,
+            propertyID: resolvedPropertyID, itemID: itemID, subEventID: subEventID, title: title, category: category,
             completedDate: date, notes: notes, cost: cost, performedBy: performedBy,
             rating: rating, countsAsCompletion: countsAsCompletion
         )
@@ -1031,14 +1173,14 @@ final class UpkeepStore {
 
     func createVendor(name: String, phone: String = "", email: String = "",
                       website: String = "", location: String = "",
-                      specialty: String = "", tags: [String] = [],
+                      specialty: String = "", propertyIDs: [UUID] = [], tags: [String] = [],
                       accountManager: AccountManager = AccountManager(),
                       notes: String = "", source: String = "",
                       isActive: Bool = true) {
         let vendor = Vendor(
             name: name, phone: phone, email: email,
             website: website, location: location,
-            specialty: specialty, tags: tags,
+            specialty: specialty, propertyIDs: propertyIDs, tags: tags,
             accountManager: accountManager, notes: notes,
             source: source, isActive: isActive
         )
@@ -1109,7 +1251,7 @@ final class UpkeepStore {
     // MARK: - Sourcing
 
     var activeSourcings: [Sourcing] {
-        sourcings.filter(\.isOpen)
+        scopedSourcings.filter(\.isOpen)
     }
 
     func sourcings(forItem itemID: UUID) -> [Sourcing] {
@@ -1145,10 +1287,11 @@ final class UpkeepStore {
         return affected
     }
 
-    func createSourcing(title: String, linkedItemIDs: [UUID] = [],
+    func createSourcing(propertyID: UUID? = nil, title: String, linkedItemIDs: [UUID] = [],
                         replacingVendorID: UUID? = nil,
                         decideBy: Date? = nil, notes: String = "") {
         let sourcing = Sourcing(
+            propertyID: propertyID,
             title: title, linkedItemIDs: linkedItemIDs,
             replacingVendorID: replacingVendorID, decideBy: decideBy,
             notes: notes, lastModifiedBy: currentMemberID
@@ -1203,6 +1346,153 @@ final class UpkeepStore {
             } catch {
                 self.error = error.localizedDescription
             }
+        }
+    }
+
+    // MARK: - Procedure CRUD & Step Operations
+
+    var scopedProcedures: [Procedure] {
+        let sorted = procedures.sorted(by: { $0.sortOrder < $1.sortOrder })
+        guard let selectedPropertyID else { return sorted }
+        return sorted.filter { $0.propertyIDs.isEmpty || $0.propertyIDs.contains(selectedPropertyID) }
+    }
+
+    var selectedProcedure: Procedure? {
+        guard let id = selectedProcedureID else { return nil }
+        return procedures.first { $0.id == id }
+    }
+
+    func moveProcedureCard(id: UUID, before targetID: UUID) {
+        guard let fromIdx = procedures.firstIndex(where: { $0.id == id }),
+              let toIdx = procedures.firstIndex(where: { $0.id == targetID }) else { return }
+        let item = procedures.remove(at: fromIdx)
+        let insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx
+        procedures.insert(item, at: max(0, insertIdx))
+        for i in procedures.indices {
+            procedures[i].sortOrder = i
+            Task { try? await persistence.saveProcedure(procedures[i]) }
+        }
+    }
+
+    func saveProcedure(_ procedure: Procedure) {
+        var updated = procedure
+        updated.touch()
+        if let idx = procedures.firstIndex(where: { $0.id == procedure.id }) {
+            procedures[idx] = updated
+        } else {
+            procedures.append(updated)
+        }
+        Task {
+            do {
+                try await persistence.saveProcedure(updated)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func deleteProcedure(id: UUID) {
+        procedures.removeAll { $0.id == id }
+        if selectedProcedureID == id { selectedProcedureID = nil }
+        Task {
+            do {
+                try await persistence.deleteProcedure(id: id)
+                loadAll()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func toggleProcedureStep(procedureID: UUID, stepID: UUID) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }),
+              let sIdx = procedures[pIdx].steps.firstIndex(where: { $0.id == stepID }) else { return }
+        procedures[pIdx].steps[sIdx].isComplete.toggle()
+        procedures[pIdx].steps[sIdx].completedAt = procedures[pIdx].steps[sIdx].isComplete ? Date.now : nil
+        if procedures[pIdx].isFullyCompleted {
+            procedures[pIdx].completedAt = Date.now
+        } else {
+            procedures[pIdx].completedAt = nil
+        }
+        saveProcedure(procedures[pIdx])
+    }
+
+    func toggleProcedureCollapse(procedureID: UUID) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }) else { return }
+        procedures[pIdx].isCollapsed.toggle()
+        saveProcedure(procedures[pIdx])
+    }
+
+    func addProcedureStep(procedureID: UUID, text: String, notes: String? = nil, atPosition: Int? = nil) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }) else { return }
+        let newStep = ProcedureStep(text: text, notes: notes, sortOrder: procedures[pIdx].steps.count)
+        if let pos = atPosition, pos >= 0 && pos <= procedures[pIdx].steps.count {
+            procedures[pIdx].steps.insert(newStep, at: pos)
+        } else {
+            procedures[pIdx].steps.append(newStep)
+        }
+        reindexProcedureSteps(&procedures[pIdx])
+        saveProcedure(procedures[pIdx])
+    }
+
+    func removeProcedureStep(procedureID: UUID, stepID: UUID) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }) else { return }
+        procedures[pIdx].steps.removeAll { $0.id == stepID }
+        reindexProcedureSteps(&procedures[pIdx])
+        saveProcedure(procedures[pIdx])
+    }
+
+    func updateProcedureStep(procedureID: UUID, stepID: UUID, text: String, notes: String?) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }),
+              let sIdx = procedures[pIdx].steps.firstIndex(where: { $0.id == stepID }) else { return }
+        procedures[pIdx].steps[sIdx].text = text
+        procedures[pIdx].steps[sIdx].notes = notes
+        saveProcedure(procedures[pIdx])
+    }
+
+    func moveProcedureStep(procedureID: UUID, stepID: UUID, before targetStepID: UUID) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }),
+              let fromIdx = procedures[pIdx].steps.firstIndex(where: { $0.id == stepID }),
+              let toIdx = procedures[pIdx].steps.firstIndex(where: { $0.id == targetStepID }) else { return }
+        let step = procedures[pIdx].steps.remove(at: fromIdx)
+        let insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx
+        procedures[pIdx].steps.insert(step, at: max(0, insertIdx))
+        reindexProcedureSteps(&procedures[pIdx])
+        saveProcedure(procedures[pIdx])
+    }
+
+    func resetProcedure(procedureID: UUID) {
+        guard let pIdx = procedures.firstIndex(where: { $0.id == procedureID }) else { return }
+        for i in procedures[pIdx].steps.indices {
+            procedures[pIdx].steps[i].isComplete = false
+            procedures[pIdx].steps[i].completedAt = nil
+        }
+        procedures[pIdx].completedAt = nil
+        saveProcedure(procedures[pIdx])
+    }
+
+    func finishAndLogProcedure(procedureID: UUID, cost: Decimal? = nil, performedBy: String = "Self") {
+        guard let proc = procedures.first(where: { $0.id == procedureID }) else { return }
+        let completedStepsText = proc.steps.filter(\.isComplete).map { "• \($0.text)" }.joined(separator: "\n")
+        let summaryNotes = "Completed \(proc.completedCount)/\(proc.steps.count) steps for procedure: \(proc.name)\n\n\(completedStepsText)"
+
+        logCompletion(
+            propertyID: proc.propertyID ?? selectedPropertyID ?? primaryProperty?.id,
+            itemID: nil,
+            title: "\(proc.name) Completed",
+            category: .seasonal,
+            date: Date.now,
+            notes: summaryNotes,
+            cost: cost,
+            performedBy: performedBy,
+            countsAsCompletion: true
+        )
+    }
+
+    private func reindexProcedureSteps(_ procedure: inout Procedure) {
+        for i in procedure.steps.indices {
+            procedure.steps[i].sortOrder = i
         }
     }
 
@@ -1276,8 +1566,10 @@ final class UpkeepStore {
 
         // Promote winner → active Vendor
         var winner = sourcing.candidates[winnerIdx]
+        let sourcingPropIDs = sourcing.propertyID != nil ? [sourcing.propertyID!] : []
         let winnerVendor = Vendor(
             name: winner.name, phone: winner.phone, email: winner.email,
+            propertyIDs: sourcingPropIDs,
             notes: winner.notes, source: winner.source, isActive: true,
             lastModifiedBy: currentMemberID, createdAt: now, updatedAt: now
         )
@@ -1293,6 +1585,7 @@ final class UpkeepStore {
             if shouldPromote {
                 let v = Vendor(
                     name: c.name, phone: c.phone, email: c.email,
+                    propertyIDs: sourcingPropIDs,
                     notes: c.notes, source: c.source, isActive: false,
                     lastModifiedBy: currentMemberID, createdAt: now, updatedAt: now
                 )

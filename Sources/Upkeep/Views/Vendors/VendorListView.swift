@@ -8,6 +8,18 @@ struct VendorListView: View {
         @Bindable var store = store
         VStack(spacing: 0) {
             HStack(spacing: 8) {
+                if store.properties.count > 1 {
+                    Picker("Property", selection: $store.selectedPropertyID) {
+                        Text("All Properties").tag(UUID?.none)
+                        Divider()
+                        ForEach(store.properties) { p in
+                            PropertyLabel(p.name, icon: p.icon).tag(Optional(p.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                }
+
                 Toggle(isOn: $store.showInactiveVendors) {
                     Text("Show inactive")
                         .font(.caption)
@@ -81,6 +93,7 @@ struct VendorListView: View {
 }
 
 struct VendorRow: View {
+    @Environment(UpkeepStore.self) private var store
     let vendor: Vendor
 
     var body: some View {
@@ -118,6 +131,21 @@ struct VendorRow: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
+                    }
+                    if !vendor.propertyIDs.isEmpty {
+                        ForEach(vendor.propertyIDs, id: \.self) { pID in
+                            if let prop = store.properties.first(where: { $0.id == pID }) {
+                                HStack(spacing: 3) {
+                                    PropertyIconView(prop.icon, font: .caption2)
+                                    Text(prop.name)
+                                        .font(.caption2)
+                                }
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.upkeepAmber.opacity(0.12)))
+                                .foregroundStyle(.upkeepAmber)
+                            }
+                        }
                     }
                 }
             }

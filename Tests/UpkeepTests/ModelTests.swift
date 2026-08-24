@@ -611,6 +611,23 @@ struct VendorTests {
         #expect(withLocation.hasContactInfo == true)
     }
 
+    @Test("propertyIDs round-trip")
+    func propertyIDsRoundTrip() throws {
+        let propID1 = UUID()
+        let propID2 = UUID()
+        let vendor = Vendor(name: "Lake Electric", propertyIDs: [propID1, propID2])
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let data = try encoder.encode(vendor)
+        let decoded = try decoder.decode(Vendor.self, from: data)
+
+        #expect(decoded.propertyIDs == [propID1, propID2])
+    }
+
     // MARK: - Location URL: Map URLs
 
     @Test("locationURL passes through https map URL")
@@ -917,3 +934,66 @@ struct AttachmentTests {
         #expect(decoded.attachments[0].url == "https://example.com")
     }
 }
+
+// MARK: - Procedure
+
+@Suite("Procedure")
+struct ProcedureTests {
+    @Test("defaultWinterizationTemplate has 35 consolidated steps")
+    func defaultWinterizationTemplateSteps() {
+        let template = Procedure.defaultWinterizationTemplate()
+        #expect(template.name == "Northern Lake House Winterization")
+        #expect(template.phase == .winterization)
+        #expect(template.steps.count == 35)
+        #expect(template.scheduledWindow?.startMonth == 9)
+        #expect(template.scheduledWindow?.endMonth == 11)
+        
+        // Verify key mother list additions/updates
+        let thermostatStep = template.steps.first(where: { $0.text.contains("thermostat") || $0.notes?.contains("52°F") == true })
+        #expect(thermostatStep != nil)
+        #expect(thermostatStep?.notes?.contains("52°F") == true)
+        
+        let arvigStep = template.steps.first(where: { $0.text.contains("Arvig") })
+        #expect(arvigStep != nil)
+        #expect(arvigStep?.notes?.contains("$24/mo") == true)
+        
+        let ballardsStep = template.steps.first(where: { $0.text.contains("Ballards") })
+        #expect(ballardsStep != nil)
+    }
+
+    @Test("Procedure JSON round-trip")
+    func jsonRoundTrip() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let proc = Procedure.defaultWinterizationTemplate()
+        let data = try encoder.encode(proc)
+        let decoded = try decoder.decode(Procedure.self, from: data)
+
+        #expect(decoded.id == proc.id)
+        #expect(decoded.name == proc.name)
+        #expect(decoded.phase == proc.phase)
+        #expect(decoded.steps.count == proc.steps.count)
+        #expect(decoded.steps.first?.text == proc.steps.first?.text)
+    }
+
+    @Test("Procedure progress and completion")
+    func progressAndCompletion() {
+        var proc = Procedure(name: "Test Procedure", steps: [
+            ProcedureStep(text: "Step 1", isComplete: true),
+            ProcedureStep(text: "Step 2", isComplete: false)
+        ])
+
+        #expect(proc.completedCount == 1)
+        #expect(proc.progress == 0.5)
+        #expect(!proc.isFullyCompleted)
+
+        proc.steps[1].isComplete = true
+        #expect(proc.completedCount == 2)
+        #expect(proc.progress == 1.0)
+        #expect(proc.isFullyCompleted)
+    }
+}
+

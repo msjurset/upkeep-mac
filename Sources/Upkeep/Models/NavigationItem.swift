@@ -11,6 +11,8 @@ enum NavigationItem: Hashable {
     case logEntryDetail(UUID)
     case vendors
     case vendorDetail(UUID)
+    case procedures
+    case procedureDetail(UUID)
     case homeProfile
 
     /// Section-level key for persisting last-used navigation.
@@ -23,6 +25,7 @@ enum NavigationItem: Hashable {
         case .inventoryAll, .itemDetail: "inventoryAll"
         case .log, .logEntryDetail: "log"
         case .vendors, .vendorDetail: "vendors"
+        case .procedures, .procedureDetail: "procedures"
         case .homeProfile: "homeProfile"
         }
     }
@@ -36,6 +39,7 @@ enum NavigationItem: Hashable {
         case "inventoryAll": .inventoryAll
         case "log": .log
         case "vendors": .vendors
+        case "procedures": .procedures
         case "homeProfile": .homeProfile
         default: nil
         }

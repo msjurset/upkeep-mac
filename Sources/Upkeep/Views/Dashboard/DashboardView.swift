@@ -22,7 +22,7 @@ struct DashboardView: View {
                 .padding(.vertical, 24)
             }
         }
-        .navigationTitle("Dashboard")
+        .navigationTitle(store.selectedProperty.map { "Dashboard — \($0.name)" } ?? "Dashboard — All Properties")
         .sheet(isPresented: $showLogSheet) {
             if let itemID = quickLogItemID,
                store.items.contains(where: { $0.id == itemID }) {

@@ -9,6 +9,7 @@ struct ItemEditorSheet: View {
     @State private var name = ""
     @State private var category: MaintenanceCategory = .other
     @State private var priority: Priority = .medium
+    @State private var selectedPropertyID: UUID?
     @State private var scheduleKind: ScheduleKind = .recurring
     @State private var frequencyInterval = 1
     @State private var frequencyUnit: FrequencyUnit = .months
@@ -43,6 +44,17 @@ struct ItemEditorSheet: View {
             onSave: save
         ) {
                 FormSection("Details") {
+                    if store.properties.count > 1 {
+                        FormRow(label: "Property") {
+                            Picker("", selection: $selectedPropertyID) {
+                                ForEach(store.properties) { p in
+                                    PropertyLabel(p.name, icon: p.icon).tag(Optional(p.id))
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                    }
+
                     FormRow(label: "Name") {
                         HStack(spacing: 8) {
                             Button {
@@ -231,6 +243,7 @@ struct ItemEditorSheet: View {
                 name = item.name
                 category = item.category
                 priority = item.priority
+                selectedPropertyID = item.propertyID ?? store.selectedPropertyID ?? store.primaryProperty?.id
                 scheduleKind = item.scheduleKind
                 frequencyInterval = item.frequencyInterval
                 frequencyUnit = item.frequencyUnit
@@ -258,8 +271,11 @@ struct ItemEditorSheet: View {
                         unitCostString = "\(cost)"
                     }
                 }
-            } else if let initialScheduleKind {
-                scheduleKind = initialScheduleKind
+            } else {
+                selectedPropertyID = store.selectedPropertyID ?? store.primaryProperty?.id
+                if let initialScheduleKind {
+                    scheduleKind = initialScheduleKind
+                }
             }
         }
     }
@@ -333,6 +349,7 @@ struct ItemEditorSheet: View {
             existing.name = trimmedName
             existing.category = category
             existing.priority = priority
+            existing.propertyID = selectedPropertyID
             existing.scheduleKind = scheduleKind
             existing.frequencyInterval = frequencyInterval
             existing.frequencyUnit = frequencyUnit
@@ -349,6 +366,7 @@ struct ItemEditorSheet: View {
             store.updateItem(existing)
         } else {
             store.createItem(
+                propertyID: selectedPropertyID,
                 name: trimmedName, category: category, priority: priority,
                 scheduleKind: scheduleKind,
                 frequencyInterval: frequencyInterval, frequencyUnit: frequencyUnit,

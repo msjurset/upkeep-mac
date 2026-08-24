@@ -99,6 +99,7 @@ struct Candidate: Codable, Identifiable, Hashable, Sendable {
 
 struct Sourcing: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
+    var propertyID: UUID?
     var title: String
     var linkedItemIDs: [UUID]
     var replacingVendorID: UUID?
@@ -113,7 +114,7 @@ struct Sourcing: Codable, Identifiable, Hashable, Sendable {
     var createdAt: Date
     var updatedAt: Date
 
-    init(id: UUID = UUID(), title: String, linkedItemIDs: [UUID] = [],
+    init(id: UUID = UUID(), propertyID: UUID? = nil, title: String, linkedItemIDs: [UUID] = [],
          replacingVendorID: UUID? = nil, status: SourcingStatus = .open,
          decideBy: Date? = nil, notes: String = "",
          candidates: [Candidate] = [], hiredCandidateID: UUID? = nil,
@@ -121,6 +122,7 @@ struct Sourcing: Codable, Identifiable, Hashable, Sendable {
          lastModifiedBy: UUID? = nil, createdAt: Date = .now,
          updatedAt: Date = .now) {
         self.id = id
+        self.propertyID = propertyID
         self.title = title
         self.linkedItemIDs = linkedItemIDs
         self.replacingVendorID = replacingVendorID
@@ -139,6 +141,7 @@ struct Sourcing: Codable, Identifiable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
+        propertyID = try container.decodeIfPresent(UUID.self, forKey: .propertyID)
         title = try container.decode(String.self, forKey: .title)
         // Read new plural form first; fall back to legacy single-ID form for pre-multi sourcings.
         if let arr = try container.decodeIfPresent([UUID].self, forKey: .linkedItemIDs) {
@@ -162,7 +165,7 @@ struct Sourcing: Codable, Identifiable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, linkedItemIDs, linkedItemID, replacingVendorID, status,
+        case id, propertyID, title, linkedItemIDs, linkedItemID, replacingVendorID, status,
              decideBy, notes, candidates, hiredCandidateID, cancelReason,
              version, lastModifiedBy, createdAt, updatedAt
     }
@@ -170,6 +173,7 @@ struct Sourcing: Codable, Identifiable, Hashable, Sendable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(propertyID, forKey: .propertyID)
         try container.encode(title, forKey: .title)
         try container.encode(linkedItemIDs, forKey: .linkedItemIDs)
         // Backward-compat dual-write: pre-multi clients (e.g. household members on the older

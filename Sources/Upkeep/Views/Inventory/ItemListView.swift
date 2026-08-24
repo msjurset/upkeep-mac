@@ -316,6 +316,18 @@ struct ItemRow: View {
                         .font(.body.weight(.medium))
                         .strikethrough(!item.isActive)
                         .lineLimit(1)
+                    if store.selectedPropertyID == nil, let propID = item.propertyID, let prop = store.properties.first(where: { $0.id == propID }) {
+                        HStack(spacing: 3) {
+                            PropertyIconView(prop.icon, font: .caption2)
+                            Text(prop.name)
+                        }
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.upkeepAmber)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.upkeepAmber.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
                     if !item.isActive {
                         Text("Archived")
                             .font(.caption2.weight(.medium))

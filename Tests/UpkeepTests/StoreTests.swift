@@ -475,3 +475,34 @@ struct SortingTests {
         #expect(store.sortMode == .dueSoonest)
     }
 }
+
+// MARK: - Vendor Property Scoping
+
+@Suite("UpkeepStore Vendor Property Scoping")
+struct VendorPropertyScopingTests {
+    @Test("scopedVendors filters by property designation")
+    @MainActor func scopedVendorsByProperty() {
+        let store = makeStore()
+        let prop1 = UUID()
+        let prop2 = UUID()
+
+        let globalVendor = Vendor(name: "Global Vendor", propertyIDs: [])
+        let prop1Vendor = Vendor(name: "Lake House Vendor", propertyIDs: [prop1])
+        let prop2Vendor = Vendor(name: "City House Vendor", propertyIDs: [prop2])
+
+        store.vendors = [globalVendor, prop1Vendor, prop2Vendor]
+
+        // When no property is selected (nil), all vendors are returned
+        store.selectedPropertyID = nil
+        #expect(store.scopedVendors.count == 3)
+
+        // When prop1 is selected, global + prop1 vendors are returned
+        store.selectedPropertyID = prop1
+        let p1Vendors = store.scopedVendors
+        #expect(p1Vendors.count == 2)
+        #expect(p1Vendors.contains(where: { $0.name == "Global Vendor" }))
+        #expect(p1Vendors.contains(where: { $0.name == "Lake House Vendor" }))
+        #expect(!p1Vendors.contains(where: { $0.name == "City House Vendor" }))
+    }
+}
+

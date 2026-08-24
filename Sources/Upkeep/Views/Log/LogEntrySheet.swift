@@ -21,6 +21,7 @@ struct LogEntrySheet: View {
     @State private var performedBy = ""
     @State private var rating: Int = 0
     @State private var selectedItemID: UUID?
+    @State private var selectedPropertyID: UUID?
     @State private var countsAsCompletion = true
 
     private var isEditing: Bool { entry != nil }
@@ -60,6 +61,14 @@ struct LogEntrySheet: View {
             onSave: save
         ) {
             Section("What was done") {
+                    if store.properties.count > 1 {
+                        Picker("Property", selection: $selectedPropertyID) {
+                            ForEach(store.properties) { p in
+                                PropertyLabel(p.name, icon: p.icon).tag(Optional(p.id))
+                            }
+                        }
+                    }
+
                     if itemID == nil && entry?.itemID == nil {
                         Picker("Linked item", selection: $selectedItemID) {
                             Text("None (standalone entry)").tag(UUID?.none)
@@ -73,6 +82,9 @@ struct LogEntrySheet: View {
                                     title = item.name
                                 }
                                 category = item.category
+                                if let propID = item.propertyID {
+                                    selectedPropertyID = propID
+                                }
                             }
                         }
                     }
@@ -156,6 +168,7 @@ struct LogEntrySheet: View {
                 performedBy = entry.performedBy
                 rating = entry.rating ?? 0
                 selectedItemID = entry.itemID
+                selectedPropertyID = entry.propertyID ?? linkedItem?.propertyID ?? store.selectedPropertyID ?? store.primaryProperty?.id
                 countsAsCompletion = entry.countsAsCompletion
                 if let cost = entry.cost {
                     costString = "\(cost)"
@@ -166,6 +179,7 @@ struct LogEntrySheet: View {
                     selectedItemID = itemID
                     if let item = store.items.first(where: { $0.id == itemID }) {
                         category = item.category
+                        selectedPropertyID = item.propertyID ?? store.selectedPropertyID ?? store.primaryProperty?.id
                         if let subEventID, let sub = item.subEvents.first(where: { $0.id == subEventID }) {
                             let subName = sub.name.trimmingCharacters(in: .whitespaces)
                             title = subName.isEmpty ? item.name : "\(item.name) — \(subName)"
@@ -173,6 +187,8 @@ struct LogEntrySheet: View {
                             title = item.name
                         }
                     }
+                } else {
+                    selectedPropertyID = store.selectedPropertyID ?? store.primaryProperty?.id
                 }
             }
         }
@@ -193,11 +209,12 @@ struct LogEntrySheet: View {
             existing.performedBy = performedBy
             existing.rating = ratingValue
             existing.itemID = resolvedItemID
+            existing.propertyID = selectedPropertyID
             existing.countsAsCompletion = countsAsCompletion
             store.updateLogEntry(existing)
         } else {
             store.logCompletion(
-                itemID: resolvedItemID, subEventID: subEventID, title: trimmedTitle, category: category,
+                propertyID: selectedPropertyID, itemID: resolvedItemID, subEventID: subEventID, title: trimmedTitle, category: category,
                 date: completedDate, notes: notes, cost: cost, performedBy: performedBy,
                 rating: ratingValue, countsAsCompletion: countsAsCompletion
             )

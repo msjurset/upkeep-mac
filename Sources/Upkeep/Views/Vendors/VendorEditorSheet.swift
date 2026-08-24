@@ -11,6 +11,7 @@ struct VendorEditorSheet: View {
     @State private var website = ""
     @State private var location = ""
     @State private var specialty = ""
+    @State private var selectedPropertyIDs: Set<UUID> = []
     @State private var tagsString = ""
     @State private var acctMgrName = ""
     @State private var acctMgrPhone = ""
@@ -31,6 +32,32 @@ struct VendorEditorSheet: View {
                     LeadingTextField(label: "Name", text: $name)
                     LeadingTextField(label: "Specialty", text: $specialty, prompt: "e.g. HVAC repair, plumbing")
                     TagSuggestField(text: $tagsString)
+                }
+
+                Section("Applicable Properties") {
+                    if store.properties.isEmpty {
+                        Text("No properties configured.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.properties) { p in
+                            Toggle(isOn: Binding(
+                                get: { selectedPropertyIDs.contains(p.id) },
+                                set: { isSelected in
+                                    if isSelected {
+                                        selectedPropertyIDs.insert(p.id)
+                                    } else {
+                                        selectedPropertyIDs.remove(p.id)
+                                    }
+                                }
+                            )) {
+                                PropertyLabel(p.name, icon: p.icon)
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                        Text("Select properties this vendor serves (leave unselected for all properties).")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
 
                 Section("Contact") {
@@ -60,7 +87,7 @@ struct VendorEditorSheet: View {
                         .font(.body)
                 }
         }
-        .frame(width: 440, height: 620)
+        .frame(width: 440, height: 680)
         .onAppear {
             if let vendor {
                 name = vendor.name
@@ -69,11 +96,14 @@ struct VendorEditorSheet: View {
                 website = vendor.website
                 location = vendor.location
                 specialty = vendor.specialty
+                selectedPropertyIDs = Set(vendor.propertyIDs)
                 tagsString = vendor.tags.joined(separator: ", ")
                 acctMgrName = vendor.accountManager.name
                 acctMgrPhone = vendor.accountManager.phone
                 acctMgrEmail = vendor.accountManager.email
                 notes = vendor.notes
+            } else if let sel = store.selectedPropertyID {
+                selectedPropertyIDs = [sel]
             }
         }
     }
@@ -86,6 +116,7 @@ struct VendorEditorSheet: View {
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let propIDs = Array(selectedPropertyIDs)
         if var existing = vendor {
             existing.name = trimmedName
             existing.phone = phone
@@ -93,6 +124,7 @@ struct VendorEditorSheet: View {
             existing.website = website
             existing.location = location
             existing.specialty = specialty
+            existing.propertyIDs = propIDs
             existing.tags = parsedTags
             existing.accountManager = AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail)
             existing.notes = notes
@@ -101,7 +133,7 @@ struct VendorEditorSheet: View {
             store.createVendor(
                 name: trimmedName, phone: phone, email: email,
                 website: website, location: location,
-                specialty: specialty, tags: parsedTags,
+                specialty: specialty, propertyIDs: propIDs, tags: parsedTags,
                 accountManager: AccountManager(name: acctMgrName, phone: acctMgrPhone, email: acctMgrEmail),
                 notes: notes
             )

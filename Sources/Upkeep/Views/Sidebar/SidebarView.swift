@@ -4,13 +4,13 @@ struct SidebarView: View {
     @Environment(UpkeepStore.self) private var store
     @Binding var selection: NavigationItem?
 
+    @State private var showNewPropertySheet = false
+    @State private var editingProperty: Property? = nil
+
     var body: some View {
         List(selection: $selection) {
             Section("Overview") {
-                NavigationLink(value: NavigationItem.dashboard) {
-                    Label("Dashboard", systemImage: "gauge.with.dots.needle.33percent")
-                }
-                .accessibilityIdentifier("sidebar.dashboard")
+                sidebarRow("Dashboard", icon: "gauge.with.dots.needle.33percent", tag: .dashboard, count: 0, identifier: "sidebar.dashboard")
             }
 
             Section("Inventory") {
@@ -28,11 +28,29 @@ struct SidebarView: View {
                 sidebarRow("Vendors", icon: "person.2", tag: .vendors, count: store.vendors.count, identifier: "sidebar.vendors")
             }
 
-            Section("Home") {
-                NavigationLink(value: NavigationItem.homeProfile) {
-                    Label("Home Profile", systemImage: "house")
+            Section("Workflows") {
+                sidebarRow("Procedures", icon: "checklist.checked", tag: .procedures, count: store.scopedProcedures.count, identifier: "sidebar.procedures")
+            }
+
+            Section {
+                ForEach(store.properties) { p in
+                    sidebarPropertyRow(property: p)
                 }
-                .accessibilityIdentifier("sidebar.homeProfile")
+            } header: {
+                HStack {
+                    Text("Properties")
+                    Spacer()
+                    Button {
+                        showNewPropertySheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add Property")
+                }
             }
         }
         .listStyle(.sidebar)
@@ -64,6 +82,17 @@ struct SidebarView: View {
             .padding(.top, 10)
         }
         .navigationTitle("Upkeep")
+        .sheet(isPresented: $showNewPropertySheet) {
+            PropertyEditorSheet { newProp in
+                store.saveProperty(newProp)
+                store.selectedPropertyID = newProp.id
+            }
+        }
+        .sheet(item: $editingProperty) { prop in
+            PropertyEditorSheet(existingProperty: prop) { updatedProp in
+                store.saveProperty(updatedProp)
+            }
+        }
     }
 
     private func sidebarRow(_ title: String, icon: String, tag: NavigationItem, count: Int, tint: Color? = nil, identifier: String) -> some View {
@@ -81,6 +110,59 @@ struct SidebarView: View {
             }
         }
         .accessibilityIdentifier(identifier)
+    }
+
+    private func sidebarPropertyRow(property: Property) -> some View {
+        let isSelected = store.selectedPropertyID == property.id
+
+        return HStack(spacing: 6) {
+            // Left checkmark (active property indicator)
+            Image(systemName: isSelected ? "checkmark" : "")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Color.upkeepAmber)
+                .frame(width: 14)
+
+            // Property label button (click to switch active scope)
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    store.selectedPropertyID = property.id
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    PropertyIconView(property.icon)
+                    Text(property.name)
+                        .font(.body)
+                }
+                .foregroundStyle(.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // Right edit pen button (click to edit property details)
+            Button {
+                editingProperty = property
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Edit \(property.name)")
+        }
+        .contextMenu {
+            Button("Edit Property...") {
+                editingProperty = property
+            }
+            if !property.isPrimary {
+                Button("Set as Primary") {
+                    var updated = property
+                    updated.isPrimary = true
+                    store.saveProperty(updated)
+                }
+            }
+        }
     }
 
     private func exportReport() {

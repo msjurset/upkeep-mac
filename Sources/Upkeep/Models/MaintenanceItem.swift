@@ -59,6 +59,8 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var frequencyInterval: Int
     var frequencyUnit: FrequencyUnit
     var startDate: Date
+    /// The property this item belongs to. Optional — nil defaults to the primary property.
+    var propertyID: UUID?
     var notes: String
     var vendorID: UUID?
     /// The household member who facilitates / leads this item. Optional —
@@ -82,7 +84,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     var createdAt: Date
     var updatedAt: Date
 
-    init(id: UUID = UUID(), name: String, category: MaintenanceCategory = .other,
+    init(id: UUID = UUID(), propertyID: UUID? = nil, name: String, category: MaintenanceCategory = .other,
          priority: Priority = .medium, scheduleKind: ScheduleKind? = nil,
          frequencyInterval: Int = 1,
          frequencyUnit: FrequencyUnit = .months, startDate: Date = .now,
@@ -96,6 +98,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
          version: Int = 1, lastModifiedBy: UUID? = nil,
          createdAt: Date = .now, updatedAt: Date = .now) {
         self.id = id
+        self.propertyID = propertyID
         self.name = name
         self.category = category
         self.priority = priority
@@ -125,6 +128,7 @@ struct MaintenanceItem: Codable, Identifiable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
+        propertyID = try container.decodeIfPresent(UUID.self, forKey: .propertyID)
         name = try container.decode(String.self, forKey: .name)
         category = try container.decode(MaintenanceCategory.self, forKey: .category)
         priority = try container.decode(Priority.self, forKey: .priority)

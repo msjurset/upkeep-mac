@@ -33,14 +33,24 @@ struct WeatherWidget: View {
         }
         .panelStyle()
         .task {
-            // First load: fetch the home profile address & re-apply location.
-            if let profile = try? await store.loadHomeProfile() {
-                profileAddress = profile.address
-                weather.applyLocation(latitude: profile.latitude, longitude: profile.longitude)
-            }
+            updateLocation()
+        }
+        .onChange(of: store.selectedPropertyID) { _, _ in
+            updateLocation()
         }
         .sheet(isPresented: $showDetail) {
             WeatherDetailSheet(address: profileAddress, initialDay: initialDetailDay)
+        }
+    }
+
+    private func updateLocation() {
+        let activeProp = store.selectedProperty ?? store.primaryProperty
+        if let activeProp {
+            profileAddress = activeProp.name + (activeProp.address.isEmpty ? "" : " (\(activeProp.address))")
+            weather.applyLocation(latitude: activeProp.latitude, longitude: activeProp.longitude)
+        } else {
+            profileAddress = "All Properties"
+            weather.applyLocation(latitude: nil, longitude: nil)
         }
     }
 

@@ -16,6 +16,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
     var website: String
     var location: String
     var specialty: String
+    var propertyIDs: [UUID]
     var tags: [String]
     var accountManager: AccountManager
     var notes: String
@@ -28,7 +29,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
 
     init(id: UUID = UUID(), name: String, phone: String = "",
          email: String = "", website: String = "", location: String = "",
-         specialty: String = "", tags: [String] = [],
+         specialty: String = "", propertyIDs: [UUID] = [], tags: [String] = [],
          accountManager: AccountManager = AccountManager(),
          notes: String = "", source: String = "", isActive: Bool = true,
          version: Int = 1,
@@ -40,6 +41,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         self.website = website
         self.location = location
         self.specialty = specialty
+        self.propertyIDs = propertyIDs
         self.tags = tags
         self.accountManager = accountManager
         self.notes = notes
@@ -60,6 +62,7 @@ struct Vendor: Codable, Identifiable, Hashable, Sendable {
         website = try container.decode(String.self, forKey: .website)
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
         specialty = try container.decode(String.self, forKey: .specialty)
+        propertyIDs = try container.decodeIfPresent([UUID].self, forKey: .propertyIDs) ?? []
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         accountManager = try container.decodeIfPresent(AccountManager.self, forKey: .accountManager) ?? AccountManager()
         notes = try container.decode(String.self, forKey: .notes)

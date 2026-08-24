@@ -38,6 +38,42 @@ struct VendorDetailView: View {
                 }
                 .padding(20)
 
+                // Designated Properties
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Designated Properties")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+
+                    if vendor.propertyIDs.isEmpty {
+                        HStack(spacing: 6) {
+                            Image(systemName: "globe")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("All Properties (Global)")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        FlowLayout(spacing: 8) {
+                            ForEach(vendor.propertyIDs, id: \.self) { pID in
+                                if let prop = store.properties.first(where: { $0.id == pID }) {
+                                    HStack(spacing: 6) {
+                                        PropertyIconView(prop.icon, font: .caption)
+                                        Text(prop.name)
+                                            .font(.callout.weight(.medium))
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(Color.upkeepAmber.opacity(0.12)))
+                                    .foregroundStyle(.upkeepAmber)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+
                 // Contact info
                 if vendor.hasContactInfo {
                     Divider()

@@ -9,6 +9,7 @@ struct SourcingEditorSheet: View {
     @State private var notes = ""
     @State private var linkedItemIDs: [UUID] = []
     @State private var replacingVendorID: UUID?
+    @State private var selectedPropertyID: UUID?
     @State private var hasDecideBy = false
     @State private var decideBy = Date.now.addingTimeInterval(60 * 60 * 24 * 30)
 
@@ -30,6 +31,13 @@ struct SourcingEditorSheet: View {
             onSave: save
         ) {
             Section("Details") {
+                if store.properties.count > 1 {
+                    Picker("Property", selection: $selectedPropertyID) {
+                        ForEach(store.properties) { p in
+                            PropertyLabel(p.name, icon: p.icon).tag(Optional(p.id))
+                        }
+                    }
+                }
                 LeadingTextField(label: "Title", text: $title, prompt: "e.g. Lawn service replacement")
             }
 
@@ -87,10 +95,13 @@ struct SourcingEditorSheet: View {
                 notes = sourcing.notes
                 linkedItemIDs = sourcing.linkedItemIDs
                 replacingVendorID = sourcing.replacingVendorID
+                selectedPropertyID = sourcing.propertyID ?? store.selectedPropertyID ?? store.primaryProperty?.id
                 if let d = sourcing.decideBy {
                     hasDecideBy = true
                     decideBy = d
                 }
+            } else {
+                selectedPropertyID = store.selectedPropertyID ?? store.primaryProperty?.id
             }
         }
     }
@@ -103,10 +114,12 @@ struct SourcingEditorSheet: View {
             existing.notes = notes
             existing.linkedItemIDs = linkedItemIDs
             existing.replacingVendorID = replacingVendorID
+            existing.propertyID = selectedPropertyID
             existing.decideBy = resolvedDecideBy
             store.updateSourcing(existing)
         } else {
             store.createSourcing(
+                propertyID: selectedPropertyID,
                 title: trimmed,
                 linkedItemIDs: linkedItemIDs,
                 replacingVendorID: replacingVendorID,

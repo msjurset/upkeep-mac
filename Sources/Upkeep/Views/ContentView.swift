@@ -18,7 +18,7 @@ struct ContentView: View {
             SidebarView(selection: $store.navigation)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
         } detail: {
-            if store.navigation == .dashboard || store.navigation == .homeProfile {
+            if store.navigation == .dashboard || store.navigation == .homeProfile || store.navigation == .procedures {
                 DetailView()
             } else {
                 HStack(spacing: 0) {
@@ -164,6 +164,7 @@ struct ContentView: View {
         case .inventoryUpcoming, .inventoryOverdue, .inventoryIdeas, .inventoryAll, .itemDetail: return "inventory"
         case .log, .logEntryDetail: return "log"
         case .vendors, .vendorDetail: return "vendors"
+        case .procedures, .procedureDetail: return "procedures"
         case .homeProfile: return "home"
         case nil: return ""
         }
@@ -255,8 +256,11 @@ struct DetailView: View {
                 }
             }
         case .homeProfile:
-            HomeProfileView()
+            PropertyProfileView()
                 .accessibilityIdentifier("detail.homeProfile")
+        case .procedures, .procedureDetail:
+            ProceduresContainerView()
+                .accessibilityIdentifier("detail.procedures")
         case nil:
             EmptyDetailView(icon: "house", message: "Welcome to Upkeep")
                 .accessibilityIdentifier("detail.empty")
