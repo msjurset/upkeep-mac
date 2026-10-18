@@ -178,6 +178,10 @@ final class UpkeepDocsScreenshotTests: XCTestCase {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try pngData.write(to: url)
         window.orderOut(nil)
+
+        if !callouts.isEmpty && path.hasSuffix(".png") {
+            try renderAnnotatedScreenshot(view, callouts: [], size: size, to: String(path.dropLast(4)) + "_clean.png")
+        }
     }
 
     @MainActor

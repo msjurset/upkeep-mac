@@ -265,8 +265,9 @@ struct FilteringTests {
     @Test("lowStockItems filters by supply.needsReorder")
     @MainActor func lowStockFilter() {
         let store = makeStore()
+        let futureDate = Date.now.addingTimeInterval(86400 * 180)
         store.items = [
-            makeItem(name: "A", supply: Supply(stockOnHand: 0, quantityPerUse: 1)),
+            makeItem(name: "A", startDate: futureDate, supply: Supply(stockOnHand: 0, quantityPerUse: 1)),
             makeItem(name: "B", supply: Supply(stockOnHand: 10, quantityPerUse: 1)),
             makeItem(name: "C"),
         ]
