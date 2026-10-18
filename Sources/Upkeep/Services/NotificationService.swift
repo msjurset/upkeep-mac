@@ -4,11 +4,15 @@ import UserNotifications
 actor NotificationService {
     static let shared = NotificationService()
 
-    private let center = UNUserNotificationCenter.current()
+    private var center: UNUserNotificationCenter? {
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return nil }
+        return UNUserNotificationCenter.current()
+    }
 
     // MARK: - Permission
 
     func requestPermission() async -> Bool {
+        guard let center else { return false }
         do {
             return try await center.requestAuthorization(options: [.alert, .sound, .badge])
         } catch {
@@ -17,6 +21,7 @@ actor NotificationService {
     }
 
     func isAuthorized() async -> Bool {
+        guard let center else { return false }
         let settings = await center.notificationSettings()
         return settings.authorizationStatus == .authorized
     }
@@ -24,6 +29,7 @@ actor NotificationService {
     // MARK: - Scheduling
 
     func scheduleDueReminder(itemID: UUID, itemName: String, dueDate: Date, daysBefore: Int) async {
+        guard let center else { return }
         guard let reminderDate = Calendar.current.date(byAdding: .day, value: -daysBefore, to: dueDate),
               reminderDate > .now else { return }
 
@@ -41,6 +47,7 @@ actor NotificationService {
     }
 
     func scheduleOverdueReminder(itemID: UUID, itemName: String, dueDate: Date) async {
+        guard let center else { return }
         guard dueDate > .now else { return }
 
         let content = UNMutableNotificationContent()
@@ -59,6 +66,7 @@ actor NotificationService {
     // MARK: - Cancellation
 
     func cancelReminders(itemID: UUID) async {
+        guard let center else { return }
         let pending = await center.pendingNotificationRequests()
         let prefix = "upkeep-\(itemID.uuidString)"
         let matching = pending.filter { $0.identifier.hasPrefix(prefix) }.map(\.identifier)
@@ -77,6 +85,7 @@ actor NotificationService {
     // MARK: - Sourcing
 
     func scheduleSourcingReminder(sourcingID: UUID, title: String, decideBy: Date, daysBefore: Int) async {
+        guard let center else { return }
         guard let reminderDate = Calendar.current.date(byAdding: .day, value: -daysBefore, to: decideBy),
               reminderDate > .now else { return }
 
@@ -94,6 +103,7 @@ actor NotificationService {
     }
 
     func cancelSourcingReminder(sourcingID: UUID) async {
+        guard let center else { return }
         let id = sourcingReminderID(sourcingID: sourcingID)
         center.removePendingNotificationRequests(withIdentifiers: [id])
     }

@@ -21,6 +21,12 @@ final class WeatherStore {
 
     init() {}
 
+    func setForecastForTesting(_ forecast: Forecast) {
+        self.forecast = forecast
+        self.isLoading = false
+        self.error = nil
+    }
+
     /// Call once after `HomeProfile` has loaded.
     func applyLocation(latitude: Double?, longitude: Double?) {
         let changed = latitude != self.latitude || longitude != self.longitude
