@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - MaintenanceTimelineView
 
-/// A horizontal scrollable timeline showing completed maintenance (left of "Now")
-/// and upcoming/overdue items (right of "Now"). The view centers on the "Now" divider
+/// A horizontal scrollable timeline showing completed maintenance and overdue items (left of "Now")
+/// and upcoming items (right of "Now"). The view centers on the "Now" divider
 /// on first appearance.
 ///
 /// **Scrolling is handled three ways:**
@@ -529,7 +529,7 @@ struct MaintenanceTimelineView: View {
 
     // MARK: - Data Assembly
 
-    /// Builds the ordered timeline: completed log entries (oldest-first) → Now → overdue → upcoming.
+    /// Builds the ordered timeline: completed log entries (oldest-first) → overdue items → Now → upcoming.
     private var timelineEntries: [TimelineEntry] {
         var entries: [TimelineEntry] = []
 
@@ -552,23 +552,8 @@ struct MaintenanceTimelineView: View {
             ))
         }
 
-        // Center divider
-        entries.append(TimelineEntry(
-            kind: .nowDivider,
-            stableID: "now-divider",
-            title: "",
-            subtitle: nil,
-            date: .now,
-            icon: "",
-            categoryColor: .clear,
-            logEntryID: nil,
-            itemID: nil
-        ))
-
-        // Future: overdue items first (sorted by due date), then upcoming items.
+        // Overdue items (past due date, placed to the left of "Now").
         let overdueItems = store.overdueItems
-            .sorted { store.nextDueDate(for: $0) < store.nextDueDate(for: $1) }
-        let upcomingItems = store.upcomingItems
             .sorted { store.nextDueDate(for: $0) < store.nextDueDate(for: $1) }
 
         for item in overdueItems {
@@ -584,6 +569,23 @@ struct MaintenanceTimelineView: View {
                 itemID: item.id
             ))
         }
+
+        // Center divider
+        entries.append(TimelineEntry(
+            kind: .nowDivider,
+            stableID: "now-divider",
+            title: "",
+            subtitle: nil,
+            date: .now,
+            icon: "",
+            categoryColor: .clear,
+            logEntryID: nil,
+            itemID: nil
+        ))
+
+        // Future: upcoming items (right of "Now").
+        let upcomingItems = store.upcomingItems
+            .sorted { store.nextDueDate(for: $0) < store.nextDueDate(for: $1) }
 
         for item in upcomingItems {
             entries.append(TimelineEntry(

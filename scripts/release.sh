@@ -6,9 +6,16 @@ APP_NAME="Upkeep"
 BUNDLE="${APP_NAME}.app"
 DMG="${APP_NAME}-${VERSION}.dmg"
 SIGN_TOOL=".build/artifacts/sparkle/Sparkle/bin/sign_update"
-SIGN_IDENTITY="Developer ID Application: Mark Sjurseth (RR3C36U9G4)"
-NOTARY_PROFILE="notarytool-profile"
+SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application:' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
+REPO="${GITHUB_REPO:-$(git remote get-url origin 2>/dev/null | sed -E 's/.*[:\/]([^\/]+\/[^\/\.]+)(\.git)?$/\1/')}"
 BUILD_NUM=$(git rev-list --count HEAD 2>/dev/null || echo "1")
+
+if [ -z "${SIGN_IDENTITY}" ]; then
+    echo "Error: No Developer ID Application certificate found in Keychain."
+    echo "Specify manually via: export SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)'"
+    exit 1
+fi
 
 echo "==> Building Upkeep v${VERSION} (build ${BUILD_NUM})..."
 
@@ -108,14 +115,14 @@ echo "  Length: ${LENGTH}"
 # Generate appcast.xml
 echo "==> Generating appcast.xml..."
 PUBDATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
-DOWNLOAD_URL="https://github.com/msjurset/upkeep-mac/releases/download/v${VERSION}/${DMG}"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG}"
 
 cat > appcast.xml <<APPCAST
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>Upkeep</title>
-    <link>https://github.com/msjurset/upkeep-mac</link>
+    <link>https://github.com/${REPO}</link>
     <description>Upkeep app updates</description>
     <language>en</language>
     <item>
@@ -151,5 +158,5 @@ Existing installations will be notified of this update automatically."
 echo ""
 echo "==> Release v${VERSION} complete!"
 echo "    DMG: ${DMG}"
-echo "    GitHub: https://github.com/msjurset/upkeep-mac/releases/tag/v${VERSION}"
-echo "    Appcast: https://raw.githubusercontent.com/msjurset/upkeep-mac/main/appcast.xml"
+echo "    GitHub: https://github.com/${REPO}/releases/tag/v${VERSION}"
+echo "    Appcast: https://raw.githubusercontent.com/${REPO}/main/appcast.xml"

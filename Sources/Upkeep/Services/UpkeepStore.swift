@@ -226,13 +226,80 @@ final class UpkeepStore {
     /// Clears the forward stack since a new branch is starting.
     func recordHistory() {
         let snap = currentSnapshot()
-        // Skip duplicates
-        if let last = historyStack.last, last == snap { return }
+        if let last = historyStack.last {
+            // Skip exact duplicates
+            if last == snap { return }
+            // Collapse intermediate snapshots created when changing section right before selecting a detail item
+            if last.navigation == snap.navigation &&
+               last.selectedItemID == nil && last.selectedVendorID == nil &&
+               last.selectedLogEntryID == nil && last.selectedSourcingID == nil &&
+               last.selectedProcedureID == nil &&
+               (snap.selectedItemID != nil || snap.selectedVendorID != nil || snap.selectedLogEntryID != nil || snap.selectedSourcingID != nil || snap.selectedProcedureID != nil) {
+                historyStack.removeLast()
+            }
+        }
         historyStack.append(snap)
         forwardStack.removeAll()
         if historyStack.count > 50 {
             historyStack.removeFirst(historyStack.count - 50)
         }
+    }
+
+    // MARK: - Atomic Navigation Helpers
+
+    /// Navigate to an item's detail view, recording the current state into history beforehand.
+    func openItem(_ itemID: UUID, navigation: NavigationItem = .inventoryAll) {
+        recordHistory()
+        isApplyingHistory = true
+        self.selectedItemID = itemID
+        self.navigation = navigation
+        isApplyingHistory = false
+    }
+
+    /// Navigate to a vendor's detail view, recording the current state into history beforehand.
+    func openVendor(_ vendorID: UUID) {
+        recordHistory()
+        isApplyingHistory = true
+        self.selectedVendorID = vendorID
+        self.navigation = .vendors
+        self.vendorsTab = .vendors
+        isApplyingHistory = false
+    }
+
+    /// Navigate to a sourcing's detail view, recording the current state into history beforehand.
+    func openSourcing(_ sourcingID: UUID) {
+        recordHistory()
+        isApplyingHistory = true
+        self.selectedSourcingID = sourcingID
+        self.navigation = .vendors
+        self.vendorsTab = .sourcings
+        isApplyingHistory = false
+    }
+
+    /// Navigate to a log entry's detail view, recording the current state into history beforehand.
+    func openLogEntry(_ logID: UUID) {
+        recordHistory()
+        isApplyingHistory = true
+        self.selectedLogEntryID = logID
+        self.navigation = .log
+        isApplyingHistory = false
+    }
+
+    /// Navigate to a procedure's detail view, recording the current state into history beforehand.
+    func openProcedure(_ procedureID: UUID) {
+        recordHistory()
+        isApplyingHistory = true
+        self.selectedProcedureID = procedureID
+        self.navigation = .procedures
+        isApplyingHistory = false
+    }
+
+    /// Navigate to a top-level section, recording history beforehand.
+    func openSection(_ section: NavigationItem) {
+        recordHistory()
+        isApplyingHistory = true
+        self.navigation = section
+        isApplyingHistory = false
     }
 
     func goBack() {
@@ -626,8 +693,8 @@ final class UpkeepStore {
         return activeItems.filter { item in
             guard let supply = item.supply, supply.needsReorder else { return false }
             if supply.isReorderDismissalActive { return false }
-            // Only nag when the next use is within two weeks.
-            return scheduling.daysUntilDue(item) <= 14
+            // Always show out-of-stock items (0 left); for low stock (1+ left), nag when next use is within 2 weeks.
+            return supply.isOutOfStock || scheduling.daysUntilDue(item) <= 14
         }
     }
 

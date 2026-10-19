@@ -222,9 +222,7 @@ struct DashboardView: View {
             ForEach(store.lowStockItems) { item in
                 if let supply = item.supply {
                     Button {
-                        store.recordHistory()
-                        store.navigation = .inventoryAll
-                        store.selectedItemID = item.id
+                        store.openItem(item.id)
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: item.effectiveIcon)
@@ -275,9 +273,7 @@ struct DashboardView: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         Button("View Details") {
-                            store.recordHistory()
-                            store.navigation = .inventoryAll
-                            store.selectedItemID = item.id
+                            store.openItem(item.id)
                         }
                         Button("Dismiss Reminder") {
                             store.dismissReorderAlert(itemID: item.id)
@@ -313,9 +309,7 @@ struct DashboardView: View {
                         .help("Mark complete")
 
                         Button {
-                            store.recordHistory()
-                            store.navigation = .inventoryAll
-                            store.selectedItemID = item.id
+                            store.openItem(item.id)
                         } label: {
                             HStack(spacing: 10) {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -352,9 +346,7 @@ struct DashboardView: View {
                             store.toggleFollowUp(itemID: item.id, followUpID: followUp.id)
                         }
                         Button("View Details") {
-                            store.recordHistory()
-                            store.navigation = .inventoryAll
-                            store.selectedItemID = item.id
+                            store.openItem(item.id)
                         }
                     }
                 }
@@ -375,10 +367,7 @@ struct DashboardView: View {
                 }
             }) { sourcing in
                 Button {
-                    store.recordHistory()
-                    store.navigation = .vendors
-                    store.vendorsTab = .sourcings
-                    store.selectedSourcingID = sourcing.id
+                    store.openSourcing(sourcing.id)
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass.circle.fill")
@@ -432,9 +421,7 @@ struct DashboardView: View {
             ForEach(store.overdueItems.prefix(5)) { item in
                 HStack(spacing: 10) {
                     Button {
-                        store.recordHistory()
-                        store.navigation = .inventoryAll
-                        store.selectedItemID = item.id
+                        store.openItem(item.id)
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: item.effectiveIcon)
@@ -536,9 +523,7 @@ struct DashboardView: View {
                                     VStack(spacing: 3) {
                                         ForEach(week.items) { item in
                                             Button {
-                                                store.recordHistory()
-                                                store.navigation = .inventoryAll
-                                                store.selectedItemID = item.id
+                                                store.openItem(item.id)
                                             } label: {
                                                 HStack(spacing: 4) {
                                                     Circle()
@@ -601,9 +586,7 @@ struct DashboardView: View {
                     VStack(spacing: 1) {
                         ForEach(suggestions) { item in
                             Button {
-                                store.recordHistory()
-                                store.navigation = .inventoryAll
-                                store.selectedItemID = item.id
+                                store.openItem(item.id)
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: item.effectiveIcon)
@@ -686,8 +669,7 @@ struct DashboardView: View {
         sectionView(title: "Ideas", icon: "lightbulb", tint: .yellow) {
             ForEach(store.ideaItems.prefix(5)) { item in
                 Button {
-                    store.navigation = .inventoryIdeas
-                    store.selectedItemID = item.id
+                    store.openItem(item.id, navigation: .inventoryIdeas)
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.effectiveIcon)
@@ -892,33 +874,39 @@ struct DashboardView: View {
     }
 
     private func dashboardLogRow(_ entry: LogEntry) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: entry.category.icon)
-                .font(.body)
-                .foregroundStyle(Color.categoryColor(entry.category))
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
+        Button {
+            store.openLogEntry(entry.id)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: entry.category.icon)
                     .font(.body)
-                    .lineLimit(1)
-                Text(entry.completedDate.shortDate)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.categoryColor(entry.category))
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.title)
+                        .font(.body)
+                        .lineLimit(1)
+                    Text(entry.completedDate.shortDate)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                CostText(cost: entry.cost)
             }
-
-            Spacer()
-
-            CostText(cost: entry.cost)
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.background))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.background))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator.opacity(0.2)))
+        .buttonStyle(.plain)
+        .pointerCursor()
     }
 
     private func moreButton(count: Int, destination: NavigationItem) -> some View {
         Button {
-            store.navigation = destination
+            store.openSection(destination)
         } label: {
             Text("+ \(count) more")
                 .font(.caption.weight(.medium))
