@@ -43,6 +43,61 @@ struct UpkeepApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
+            CommandGroup(replacing: .newItem) {
+                Button(store.navigation == .inventoryIdeas ? "New Idea…" : "New Maintenance Item…") {
+                    NotificationCenter.default.post(name: .upkeepNewItem, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
+                Button("New Log Entry…") {
+                    NotificationCenter.default.post(name: .upkeepNewLogEntry, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
+            CommandGroup(after: .textEditing) {
+                Button("Quick Search…") {
+                    NotificationCenter.default.post(name: .upkeepQuickSearch, object: nil)
+                }
+                .keyboardShortcut("k", modifiers: .command)
+
+                Button("Find…") {
+                    NotificationCenter.default.post(name: .upkeepQuickSearch, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+            }
+            CommandMenu("Navigate") {
+                Button("Dashboard") { store.navigation = .dashboard }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Upcoming Items") { store.navigation = .inventoryUpcoming }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Overdue Items") { store.navigation = .inventoryOverdue }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("Ideas") { store.navigation = .inventoryIdeas }
+                    .keyboardShortcut("4", modifiers: .command)
+                Button("All Items") { store.navigation = .inventoryAll }
+                    .keyboardShortcut("5", modifiers: .command)
+
+                Divider()
+
+                Button("Maintenance Log") { store.navigation = .log }
+                    .keyboardShortcut("6", modifiers: .command)
+                Button("Vendors & Sourcing") { store.navigation = .vendors }
+                    .keyboardShortcut("7", modifiers: .command)
+                Button("Procedures") { store.navigation = .procedures }
+                    .keyboardShortcut("8", modifiers: .command)
+                Button("Property Profile") { store.navigation = .homeProfile }
+                    .keyboardShortcut("9", modifiers: .command)
+
+                Divider()
+
+                Button("Back") { store.goBack() }
+                    .keyboardShortcut("[", modifiers: .command)
+                    .disabled(!store.canGoBack)
+
+                Button("Forward") { store.goForward() }
+                    .keyboardShortcut("]", modifiers: .command)
+                    .disabled(!store.canGoForward)
+            }
             CommandGroup(replacing: .help) {
                 Button("Upkeep Help") {
                     openWindow(id: "help")
@@ -98,4 +153,10 @@ final class CheckForUpdatesViewModel: ObservableObject {
         }
         canCheckForUpdates = updater.canCheckForUpdates
     }
+}
+
+extension Notification.Name {
+    static let upkeepNewItem = Notification.Name("upkeep.newItem")
+    static let upkeepNewLogEntry = Notification.Name("upkeep.newLogEntry")
+    static let upkeepQuickSearch = Notification.Name("upkeep.quickSearch")
 }

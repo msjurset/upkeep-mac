@@ -45,8 +45,7 @@ struct ContentView: View {
                     Image(systemName: "chevron.left")
                 }
                 .disabled(!store.canGoBack)
-                .keyboardShortcut("[", modifiers: .command)
-                .help("Back")
+                .help("Back (⌘[)")
 
                 Button {
                     store.goForward()
@@ -54,8 +53,7 @@ struct ContentView: View {
                     Image(systemName: "chevron.right")
                 }
                 .disabled(!store.canGoForward)
-                .keyboardShortcut("]", modifiers: .command)
-                .help("Forward")
+                .help("Forward (⌘])")
             }
         }
         .onAppear {
@@ -102,16 +100,13 @@ struct ContentView: View {
         .sheet(isPresented: $showQuickSearch) {
             QuickSearchView()
         }
-        .keyboardShortcut("n", modifiers: .command) {
+        .onReceive(NotificationCenter.default.publisher(for: .upkeepNewItem)) { _ in
             showNewItemSheet = true
         }
-        .keyboardShortcut("n", modifiers: [.command, .shift]) {
+        .onReceive(NotificationCenter.default.publisher(for: .upkeepNewLogEntry)) { _ in
             showNewLogEntrySheet = true
         }
-        .keyboardShortcut("k", modifiers: .command) {
-            showQuickSearch = true
-        }
-        .keyboardShortcut("f", modifiers: .command) {
+        .onReceive(NotificationCenter.default.publisher(for: .upkeepQuickSearch)) { _ in
             showQuickSearch = true
         }
         .background(SearchKeyMonitor { showQuickSearch = true })

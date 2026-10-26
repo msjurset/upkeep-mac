@@ -119,6 +119,7 @@ When logging work (`Cmd+Shift+N` or **Log Completion** on an item):
 | `Cmd+N` | Create a new Maintenance Item (defaults to *Idea* when viewing Ideas) |
 | `Cmd+Shift+N` | Log a new Maintenance Entry |
 | `Cmd+K` / `Cmd+F` | Open Quick Search across items, sub-events, logs, vendors, and supplies |
+| `Cmd+1` – `Cmd+9` | Jump directly to Dashboard, Upcoming, Overdue, Ideas, All Items, Log, Vendors, Procedures, or Property Profile |
 | `Cmd+[` / `Cmd+]` | Navigate Back / Forward through cross-section drill-down history |
 | `Tab` / `Down Arrow` | Open or advance tag & filter auto-suggest dropdown |
 | `Shift+Tab` / `Up Arrow` | Move auto-suggest highlight backward |

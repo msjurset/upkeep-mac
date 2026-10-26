@@ -32,9 +32,10 @@ struct HelpView: View {
                 ])
 
                 helpSection("Keyboard Shortcuts", items: [
-                    ("command", "Cmd+N", "New maintenance item"),
+                    ("command", "Cmd+N", "New maintenance item (or New Idea when viewing Ideas)"),
                     ("command", "Cmd+Shift+N", "New log entry"),
                     ("command", "Cmd+K / Cmd+F / /", "Quick search across items, logs, vendors, follow-ups, and supplies"),
+                    ("command", "Cmd+1 … Cmd+9", "Jump directly to Dashboard, Upcoming, Overdue, Ideas, All Items, Log, Vendors, Procedures, or Property Profile"),
                     ("command", "Cmd+[ / Cmd+]", "Navigate back and forward across item, vendor, sourcing, and log drill-downs"),
                     ("command", "Cmd+Z", "Undo last action"),
                 ])
